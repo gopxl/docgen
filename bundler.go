@@ -81,7 +81,7 @@ func (b *Bundler) CompileTo(destDir string, rootUrl *url.URL) error {
 			}
 			defer src.Close()
 
-			err = os.MkdirAll(filepath.Dir(absDstPath), 0744)
+			err = os.MkdirAll(filepath.Dir(absDstPath), 0755)
 			if err != nil {
 				return fmt.Errorf("could not create directory for output file %v: %w", absDstPath, err)
 			}
