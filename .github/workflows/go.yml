@@ -43,13 +43,19 @@ jobs:
   upload-docs:
     runs-on: ubuntu-latest
     needs: build
+    env:
+      DOCS_DIR: 'docs/'
+      DEST_DIR: '_site/'
     steps:
+      - uses: actions/configure-pages@v5
+        id: configure-pages
       - uses: actions/checkout@v3
       - uses: ./
         with:
-          docs-directory: "docs/"
-          destination-directory: '_site/'
+          deploy-url: ${{ steps.configure-pages.outputs.base_url }}
+          docs-directory: $DOCS_DIR
+          destination-directory: $DEST_DIR
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: "_site/"
+          path: $DEST_DIR
       - uses: actions/deploy-pages@v4

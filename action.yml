@@ -10,12 +10,15 @@ inputs:
     description: 'Directory the generated files will be stored to'
     required: false
     default: '_site/'
+  deploy-url:
+    description: "URL the site will be deployed to"
+    required: true
 runs:
   using: 'docker'
   image: 'Dockerfile'
   args:
     - "-url"
-    - "$GITHUB_REPOSITORY_OWNER.github.io/gopxl-docs-generator"
+    - ${{ inputs.deploy-url }}
     - "-repository"
     - "./"
     - "-docs"
