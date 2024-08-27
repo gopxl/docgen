@@ -39,3 +39,12 @@ jobs:
           OUTPUT=$(gofmt -d ./)
           echo "$OUTPUT"
           test -z "$OUTPUT"
+
+  upload-docs:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./
+        with:
+          docs-directory: "docs/"
