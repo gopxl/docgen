@@ -107,5 +107,5 @@ func (gr *GitRepository) FS(version Version) (fs.FS, error) {
 		return nil, fmt.Errorf("could not get commit object from repository: %w", err)
 	}
 
-	return gitfs.NewGitFs(obj), nil
+	return gitfs.NewGitFs(obj)
 }

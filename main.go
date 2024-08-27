@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 )
 
 //go:embed resources/views/*
@@ -33,7 +34,7 @@ func init() {
 	}
 }
 
-func newBundle(toolingFs fs.FS, repository Repository, docsDir string, repoUrl string) (*Bundler, error) {
+func newBundle(toolingFs fs.FS, repository Repository, docsDir, repoUrl string, rootUrl *url.URL) (*Bundle, error) {
 	b := NewBundler()
 
 	b.FromFs(toolingFs).
@@ -103,7 +104,7 @@ func newBundle(toolingFs fs.FS, repository Repository, docsDir string, repoUrl s
 			PutInDir(v.DisplayName())
 	}
 
-	return b, nil
+	return b.Compile(rootUrl)
 }
 
 func main() {
@@ -133,7 +134,12 @@ func main() {
 	repoDir = filepath.Clean(repoDir)
 	docsDir = filepath.Clean(docsDir)
 
-	log.Printf("url: %s", rootUrlStr)
+	rootUrl, err := url.Parse(rootUrlStr)
+	if err != nil {
+		log.Fatalf("could not parse root url %s: %v", rootUrlStr, err)
+	}
+
+	log.Printf("url: %s", rootUrl.String())
 	log.Printf("repository url: %s", repoUrl)
 	log.Printf("repository directory: %s", repoDir)
 	log.Printf("docs directory: %s", docsDir)
@@ -151,29 +157,30 @@ func main() {
 	}
 
 	if debug {
-		b, err := newBundle(toolingFs, repository, docsDir, repoUrl)
+		bun, err := newBundle(toolingFs, repository, docsDir, repoUrl, rootUrl)
 		if err != nil {
 			log.Fatalf("could not create bundle: %v", err)
 		}
-		fmt.Println(b.ListGeneratedFiles())
+		fmt.Println(bun.DestFiles())
 	}
 
 	if serve {
 		log.Println("Starting development server...")
 
-		rootUrl, err := url.Parse("http://localhost:8080")
+		// Override root url.
+		rootUrl, err = url.Parse("http://localhost:8080")
 		if err != nil {
 			log.Fatalf("could not parse root url: %v", err)
 		}
 
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-			p := path.Clean(request.URL.Path)
-			if len(path.Ext(p)) == 0 {
-				p = path.Join(p, "index.html")
+			pth := path.Clean(strings.TrimLeft(request.URL.Path, "/"))
+			if len(path.Ext(pth)) == 0 {
+				pth = path.Join(pth, "index.html")
 			}
 
-			b, err := newBundle(toolingFs, repository, docsDir, repoUrl)
+			b, err := newBundle(toolingFs, repository, docsDir, repoUrl, rootUrl)
 			if err != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
 				writer.Write([]byte(fmt.Sprintf("could not create bundle: %v", err)))
@@ -181,7 +188,7 @@ func main() {
 			}
 
 			var buf bytes.Buffer
-			err = b.WriteFile(p, &buf, rootUrl)
+			err = b.CompileFileToWriter(pth, &buf)
 			if errors.Is(err, fs.ErrNotExist) {
 				writer.WriteHeader(http.StatusNotFound)
 				writer.Write([]byte("Not Found"))
@@ -193,7 +200,7 @@ func main() {
 				return
 			}
 
-			writer.Header().Add("Content-Type", mime.TypeByExtension(filepath.Ext(p)))
+			writer.Header().Add("Content-Type", mime.TypeByExtension(filepath.Ext(pth)))
 			writer.Write(buf.Bytes())
 		})
 		s := &http.Server{
@@ -207,15 +214,11 @@ func main() {
 		}
 	} else {
 		log.Println("compiling...")
-		rootUrl, err := url.Parse(rootUrlStr)
-		if err != nil {
-			log.Fatalf("could not parse root url: %v", err)
-		}
-		b, err := newBundle(toolingFs, repository, docsDir, repoUrl)
+		b, err := newBundle(toolingFs, repository, docsDir, repoUrl, rootUrl)
 		if err != nil {
 			log.Fatalf("could not create bundle: %v", err)
 		}
-		err = b.CompileTo(destDir, rootUrl)
+		err = b.CompileAllToDir(destDir)
 		if err != nil {
 			log.Fatal(err)
 		}

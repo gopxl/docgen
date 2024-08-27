@@ -59,10 +59,10 @@ func NewPageRenderer(templateFs fs.FS, templateDir, layoutFile string, menuFunc 
 	}
 }
 
-func (pr *PageRenderer) Render(w io.Writer, request *Request, content any) error {
+func (pr *PageRenderer) Render(w io.Writer, c *Context, content any) error {
 	funcMap := map[string]any{
 		"asset": func(file string) string {
-			return request.UrlTo(file).String()
+			return c.ToAbsUrl(file).String()
 		},
 	}
 
@@ -71,7 +71,7 @@ func (pr *PageRenderer) Render(w io.Writer, request *Request, content any) error
 		return err
 	}
 
-	vm, err := pr.pageViewData(request, content)
+	vm, err := pr.pageViewData(c, content)
 	if err != nil {
 		return err
 	}
@@ -105,32 +105,32 @@ func (pr *PageRenderer) loadTemplate(funcMap template.FuncMap) (*template.Templa
 	return t, nil
 }
 
-func (pr *PageRenderer) pageViewData(request *Request, content any) (page, error) {
+func (pr *PageRenderer) pageViewData(c *Context, content any) (page, error) {
 	githubRoot, err := url.Parse(fmt.Sprintf("%s/tree/main/docs/", pr.repoUrl))
 	if err != nil {
 		return page{}, fmt.Errorf("could not get parse Github url: %w", err)
 	}
 
-	versions, err := pr.versionsViewData(request)
+	versions, err := pr.versionsViewData(c)
 	if err != nil {
 		return page{}, err
 	}
 
-	menu, err := pr.menuViewData(request)
+	menu, err := pr.menuViewData(c)
 	if err != nil {
 		return page{}, err
 	}
 
 	return page{
-		Title:     strings.TrimSuffix(filepath.Base(request.uri), filepath.Ext(request.uri)), // todo: add website title.
-		GithubUrl: githubRoot.JoinPath(request.srcPath).String(),
+		Title:     strings.TrimSuffix(filepath.Base(c.mapping.dstPath), filepath.Ext(c.mapping.dstPath)), // todo: add website title.
+		GithubUrl: githubRoot.JoinPath(c.mapping.srcPath).String(),
 		Versions:  versions,
 		Menu:      menu,
 		Content:   content,
 	}, nil
 }
 
-func (pr *PageRenderer) versionsViewData(request *Request) ([]pageVersionOption, error) {
+func (pr *PageRenderer) versionsViewData(c *Context) ([]pageVersionOption, error) {
 	versions := pr.versions
 	// Reverse order.
 	for i, j := 0, len(versions)-1; i < j; i, j = i+1, j-1 {
@@ -144,14 +144,14 @@ func (pr *PageRenderer) versionsViewData(request *Request) ([]pageVersionOption,
 
 		vs = append(vs, pageVersionOption{
 			Version:  v.DisplayName(),
-			Url:      request.UrlTo(v.DisplayName()).String(),
-			IsActive: request.bundleDstDir == v.DisplayName(),
+			Url:      c.ToAbsUrl(v.DisplayName()).String(),
+			IsActive: c.GetUriSegment(0) == v.DisplayName(),
 		})
 	}
 	return vs, nil
 }
 
-func (pr *PageRenderer) menuViewData(request *Request) ([]pageMenuSection, error) {
+func (pr *PageRenderer) menuViewData(c *Context) ([]pageMenuSection, error) {
 	menu, err := pr.menuFunc()
 	if err != nil {
 		return nil, fmt.Errorf("could not get menu: %w", err)
@@ -169,11 +169,11 @@ func (pr *PageRenderer) menuViewData(request *Request) ([]pageMenuSection, error
 			if sub.IsDir {
 				continue
 			}
-			uri := path.Join(request.bundleDstDir, sub.Path) // todo: don't hardcode
+			uri := path.Join(c.GetUriSegment(0), sub.Path)
 			itm := pageMenuItem{
 				Title:    sub.Title,
-				Url:      request.UrlTo(uri).String(),
-				IsActive: request.uri == uri,
+				Url:      c.ToAbsUrl(uri).String(),
+				IsActive: c.mapping.dstPath == uri,
 			}
 			s.Items = append(s.Items, itm)
 		}

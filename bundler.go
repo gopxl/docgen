@@ -9,208 +9,113 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
 )
 
-type Request struct {
-	bundler      *Bundler
-	bundle       *Bundle
-	rootUrl      *url.URL
-	uri          string // path of the file relative to rootUrl.
-	srcPath      string // path to the source file.
-	bundleDstDir string // path passed to Bundle.PutInDir().
+type Context struct {
+	bundle  *Bundle
+	mapping *Mapping
 }
 
-func (r *Request) UrlTo(file string) *url.URL {
-	return r.rootUrl.JoinPath(file)
+func (c *Context) GetUriSegment(i int) string {
+	p := strings.Split(c.mapping.dstPath, "/")
+	if i >= len(p) {
+		return ""
+	}
+	return p[i]
+}
+
+func (c *Context) ToAbsUrl(file string) *url.URL {
+	return c.bundle.rootUrl.JoinPath(file)
+}
+
+// RewriteContentUrl rewrites the link so that it points to the new
+// location specified in the bundle.
+func (c *Context) RewriteContentUrl(link string) (string, error) {
+	u, err := url.Parse(link)
+	if err != nil {
+		return "", fmt.Errorf("cannot parse url %s: %w", link, err)
+	}
+	if u.IsAbs() {
+		return link, nil
+	}
+	var srcPath string
+	if len(u.Path) > 0 && u.Path[0] == '/' {
+		// relative to repository root
+		srcPath = filepath.Clean(strings.TrimLeft(u.Path, "/"))
+	} else {
+		// relative to current file
+		srcPath = filepath.Join(filepath.Dir(c.mapping.srcPath), u.Path)
+	}
+	f, ok := c.bundle.srcPaths[c.mapping.srcFs][srcPath]
+	if !ok {
+		return "", fs.ErrNotExist
+	}
+	return c.ToAbsUrl(f.dstPath).String(), nil
 }
 
 type Bundler struct {
-	bundles []*Bundle
+	rules []*MappingRule
 }
 
 func NewBundler() *Bundler {
 	return &Bundler{}
 }
 
-func (b *Bundler) FromFs(fs fs.FS) *Bundle {
-	bundle := &Bundle{
+func (b *Bundler) FromFs(fs fs.FS) *MappingRule {
+	r := &MappingRule{
 		srcFs:    fs,
 		compiler: &copyCompiler{},
 	}
-	b.bundles = append(b.bundles, bundle)
-	return bundle
+	b.rules = append(b.rules, r)
+	return r
 }
 
-func (b *Bundler) ListGeneratedFiles() ([]string, error) {
-	var files []string
-	for _, b := range b.bundles {
-		sfs, err := b.SourceFiles()
+func (b *Bundler) Compile(rootUrl *url.URL) (*Bundle, error) {
+	bun := Bundle{
+		rootUrl:  rootUrl,
+		files:    nil,
+		srcPaths: make(map[fs.FS]map[string]*Mapping),
+		dstPaths: make(map[string]*Mapping),
+	}
+	for _, r := range b.rules {
+		srcPaths, err := r.sourceFiles()
 		if err != nil {
 			return nil, err
 		}
-		for _, sf := range sfs {
-			df, err := b.DestPath(sf)
+		for _, srcPath := range srcPaths {
+			destPath, err := r.DestPath(srcPath)
 			if err != nil {
 				return nil, err
 			}
-			files = append(files, df)
-		}
-	}
-	return files, nil
-}
-
-func (b *Bundler) CompileTo(destDir string, rootUrl *url.URL) error {
-	for _, bun := range b.bundles {
-		srcPaths, err := bun.SourceFiles()
-		if err != nil {
-			return err
-		}
-		for _, srcPath := range srcPaths {
-			dstPath, err := bun.DestPath(srcPath)
-			if err != nil {
-				return err
-			}
-			absDstPath := filepath.Join(destDir, dstPath)
-
-			src, err := bun.srcFs.Open(srcPath)
-			if err != nil {
-				return fmt.Errorf("could not open file %v: %w", srcPath, err)
-			}
-			defer src.Close()
-
-			err = os.MkdirAll(filepath.Dir(absDstPath), 0755)
-			if err != nil {
-				return fmt.Errorf("could not create directory for output file %v: %w", absDstPath, err)
-			}
-			dst, err := os.OpenFile(absDstPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-			if err != nil {
-				return fmt.Errorf("could not open output file %v: %w", destDir, err)
-			}
-			defer dst.Close()
-
-			err = bun.compiler.Compile(dst, src, &Request{
-				bundler:      b,
-				bundle:       bun,
-				rootUrl:      rootUrl,
-				uri:          dstPath,
-				srcPath:      srcPath,
-				bundleDstDir: bun.dstDir,
+			bun.files = append(bun.files, Mapping{
+				srcFs:    r.srcFs,
+				srcPath:  srcPath,
+				dstPath:  destPath,
+				compiler: r.compiler,
 			})
-			if err != nil {
-				return fmt.Errorf("could not compile file %v: %w", srcPath, err)
-			}
 		}
 	}
-	return nil
-}
-
-// todo: document that p is the dstPath.
-func (b *Bundler) WriteFile(p string, w io.Writer, rootUrl *url.URL) error {
-	p = path.Clean(p)
-	for _, bun := range b.bundles {
-		matches, err := doublestar.Match(path.Join("/", bun.dstDir, "**/*"), p)
-		if err != nil {
-			return fmt.Errorf("could not match request url path: %w", err)
+	sort.Slice(bun.files, func(i, j int) bool {
+		return bun.files[i].dstPath < bun.files[j].dstPath
+	})
+	for i, f := range bun.files {
+		if _, ok := bun.srcPaths[f.srcFs]; !ok {
+			bun.srcPaths[f.srcFs] = make(map[string]*Mapping)
 		}
-		if !matches {
-			continue
-		}
-		srcPaths, err := bun.SourceFiles()
-		if err != nil {
-			return fmt.Errorf("could not match request url path: %w", err)
-		}
-		for _, srcPath := range srcPaths {
-			dstPath, err := bun.DestPath(srcPath)
-			if err != nil {
-				return fmt.Errorf("could not determine destination path of file: %w", err)
-			}
-			if p != path.Clean(path.Join("/", dstPath)) {
-				continue
-			}
-			src, err := bun.srcFs.Open(srcPath)
-			if err != nil {
-				return fmt.Errorf("could not open source file %v: %w", srcPath, err)
-			}
-			defer src.Close()
-			err = bun.compiler.Compile(w, src, &Request{
-				bundler:      b,
-				bundle:       bun,
-				rootUrl:      rootUrl,
-				uri:          dstPath,
-				srcPath:      srcPath,
-				bundleDstDir: bun.dstDir,
-			})
-			if err != nil {
-				return fmt.Errorf("could not compile file %v: %w", srcPath, err)
-			}
-			return nil
-		}
+		bun.srcPaths[f.srcFs][f.srcPath] = &bun.files[i]
+		bun.dstPaths[f.dstPath] = &bun.files[i]
 	}
-	return fs.ErrNotExist
-}
-
-// RewriteContentUrl maps link l that was found in bundle bun to
-// the new absolute url.
-func (b *Bundler) RewriteContentUrl(request *Request, l string) (string, error) {
-	u, err := url.Parse(l)
-	if err != nil {
-		return "", fmt.Errorf("cannot parse url %s: %w", l, err)
-	}
-	// Absolute path.
-	if u.IsAbs() {
-		return l, nil
-	}
-
-	// Relative path.
-	l = path.Clean(u.Path)
-	var targetSrcPath string
-	if len(l) > 0 && l[0] == '/' {
-		// Relative to repository root.
-		targetSrcPath = filepath.Clean(strings.TrimLeft(l, "/"))
-	} else {
-		// Relative to current file.
-		targetSrcPath = filepath.Join(filepath.Dir(request.srcPath), l)
-	}
-	if strings.Contains(targetSrcPath, "../") {
-		return "", fmt.Errorf("url %s is outside the filesystem: %w", l, err)
-	}
-
-	// Find file.
-	for _, ob := range b.bundles {
-		// Files cannot be relative to files in other filesystems.
-		if ob.srcFs != request.bundle.srcFs {
-			continue
-		}
-		if !filepathIsSubdirOf(targetSrcPath, request.bundle.srcDir) {
-			continue
-		}
-		files, err := ob.SourceFiles()
-		if err != nil {
-			return "", fmt.Errorf("could not read source files of bundle: %w", err)
-		}
-		for _, f := range files {
-			if f != targetSrcPath {
-				continue
-			}
-			dstPath, err := ob.DestPath(f)
-			if err != nil {
-				return "", fmt.Errorf("cannot get dstPath of file: %w", err)
-			}
-			return request.rootUrl.JoinPath(dstPath).String(), nil
-		}
-	}
-
-	// Not found :(
-	return "", fmt.Errorf("url %s cannot by found in the filesystem: %w", l, err)
+	return &bun, nil
 }
 
 type srcFilesLister func(filesystem fs.FS) ([]string, error)
 type srcFileFilter func(file string) bool
 
-type Bundle struct {
+type MappingRule struct {
 	srcFs          fs.FS
 	srcDir         string
 	srcFilesLister srcFilesLister
@@ -219,7 +124,7 @@ type Bundle struct {
 	compiler       Compiler
 }
 
-func (b *Bundle) TakeFile(file string) *Bundle {
+func (b *MappingRule) TakeFile(file string) *MappingRule {
 	b.srcDir = filepath.Dir(file)
 	b.srcFilesLister = func(filesystem fs.FS) ([]string, error) {
 		_, err := filesystem.Open(file)
@@ -231,11 +136,11 @@ func (b *Bundle) TakeFile(file string) *Bundle {
 	return b
 }
 
-func (b *Bundle) TakeDir(dir string) *Bundle {
+func (b *MappingRule) TakeDir(dir string) *MappingRule {
 	return b.TakeGlob(dir, "**/*")
 }
 
-func (b *Bundle) TakeGlob(dir string, glob string) *Bundle {
+func (b *MappingRule) TakeGlob(dir string, glob string) *MappingRule {
 	b.srcDir = dir
 	b.srcFilesLister = func(filesystem fs.FS) ([]string, error) {
 		fullGlob := filepath.Join(dir, glob)
@@ -254,21 +159,21 @@ func (b *Bundle) TakeGlob(dir string, glob string) *Bundle {
 	return b
 }
 
-func (b *Bundle) Filter(filter srcFileFilter) *Bundle {
+func (b *MappingRule) Filter(filter srcFileFilter) *MappingRule {
 	b.srcFileFilter = filter
 	return b
 }
 
-func (b *Bundle) CompileWith(compiler Compiler) *Bundle {
+func (b *MappingRule) CompileWith(compiler Compiler) *MappingRule {
 	b.compiler = compiler
 	return b
 }
 
-func (b *Bundle) PutInDir(dir string) {
+func (b *MappingRule) PutInDir(dir string) {
 	b.dstDir = dir
 }
 
-func (b *Bundle) SourceFiles() ([]string, error) {
+func (b *MappingRule) sourceFiles() ([]string, error) {
 	files, err := b.srcFilesLister(b.srcFs)
 	if err != nil {
 		return nil, err
@@ -285,7 +190,7 @@ func (b *Bundle) SourceFiles() ([]string, error) {
 	return filtered, nil
 }
 
-func (b *Bundle) DestPath(srcPath string) (string, error) {
+func (b *MappingRule) DestPath(srcPath string) (string, error) {
 	rel, err := filepath.Rel(b.srcDir, srcPath)
 	if err != nil {
 		return "", fmt.Errorf("could not get relative path of file %v to source directory %v: %w", srcPath, b.srcDir, err)
@@ -299,7 +204,7 @@ func (b *Bundle) DestPath(srcPath string) (string, error) {
 
 type Compiler interface {
 	OutputFileName(oldName string) (newName string)
-	Compile(dst io.Writer, src io.Reader, request *Request) error
+	Compile(dst io.Writer, src io.Reader, request *Context) error
 }
 
 type copyCompiler struct{}
@@ -308,7 +213,85 @@ func (c *copyCompiler) OutputFileName(oldName string) (newName string) {
 	return oldName
 }
 
-func (c *copyCompiler) Compile(dst io.Writer, src io.Reader, request *Request) error {
+func (c *copyCompiler) Compile(dst io.Writer, src io.Reader, request *Context) error {
 	_, err := io.Copy(dst, src)
 	return err
+}
+
+type Bundle struct {
+	rootUrl  *url.URL
+	files    []Mapping
+	srcPaths map[fs.FS]map[string]*Mapping
+	dstPaths map[string]*Mapping
+}
+
+type Mapping struct {
+	srcFs    fs.FS
+	srcPath  string
+	dstPath  string
+	compiler Compiler
+}
+
+func (m *Mapping) Open() (fs.File, error) {
+	return m.srcFs.Open(m.srcPath)
+}
+
+func (bun *Bundle) DestFiles() []string {
+	files := make([]string, len(bun.files))
+	for _, f := range bun.files {
+		files = append(files, f.dstPath)
+	}
+	return files
+}
+
+func (bun *Bundle) CompileAllToDir(dir string) error {
+	for i := range bun.files {
+		if err := bun.compileFileToDir(&bun.files[i], dir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (bun *Bundle) compileFileToDir(f *Mapping, dir string) error {
+	absDstPath := filepath.Join(dir, f.dstPath)
+
+	err := os.MkdirAll(filepath.Dir(absDstPath), 0755)
+	if err != nil {
+		return fmt.Errorf("could not create directory for output file %v: %w", absDstPath, err)
+	}
+	dst, err := os.OpenFile(absDstPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return fmt.Errorf("could not open output file %v: %w", dir, err)
+	}
+	defer dst.Close()
+
+	return bun.compileFileToWriter(f, dst)
+}
+
+// CompileFileToWriter accepts the destination path pth of a file and writes
+// its compiled contents to writer w.
+func (bun *Bundle) CompileFileToWriter(pth string, w io.Writer) error {
+	pth = path.Clean(pth)
+	f, ok := bun.dstPaths[pth]
+	if !ok {
+		return fs.ErrNotExist
+	}
+	return bun.compileFileToWriter(f, w)
+}
+
+func (bun *Bundle) compileFileToWriter(f *Mapping, w io.Writer) error {
+	src, err := f.Open()
+	if err != nil {
+		return fmt.Errorf("could not open source file %s: %w", f.srcPath, err)
+	}
+	defer src.Close()
+	err = f.compiler.Compile(w, src, &Context{
+		mapping: f,
+		bundle:  bun,
+	})
+	if err != nil {
+		return fmt.Errorf("could not compile file %v: %w", f.srcPath, err)
+	}
+	return nil
 }

@@ -6,27 +6,26 @@ import (
 )
 
 type GitDirEntry struct {
-	fs   *GitFs
-	path string
-	typ  fs.FileMode
+	filesys *GitFs
+	i       int
 }
 
 func (g *GitDirEntry) Name() string {
-	return filepath.Base(g.path)
+	return filepath.Base(g.info().path)
 }
 
 func (g *GitDirEntry) IsDir() bool {
-	return g.typ.IsDir()
+	return g.info().isDir
 }
 
 func (g *GitDirEntry) Type() fs.FileMode {
-	return g.typ
+	return g.info().mode.Type()
 }
 
 func (g *GitDirEntry) Info() (fs.FileInfo, error) {
-	f, err := g.fs.Open(g.path)
-	if err != nil {
-		return nil, err
-	}
-	return f.Stat()
+	return g.filesys.openPos(g.i).Stat()
+}
+
+func (g *GitDirEntry) info() *fileInfo {
+	return &g.filesys.paths[g.i]
 }

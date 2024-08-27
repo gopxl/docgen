@@ -16,7 +16,7 @@ import (
 )
 
 type Renderer interface {
-	Render(w io.Writer, request *Request, content any) error
+	Render(w io.Writer, request *Context, content any) error
 }
 
 type MarkdownCompiler struct {
@@ -33,7 +33,7 @@ func (m *MarkdownCompiler) OutputFileName(oldName string) (newName string) {
 	return strings.TrimSuffix(oldName, filepath.Ext(oldName)) + ".html"
 }
 
-func (m *MarkdownCompiler) Compile(dst io.Writer, src io.Reader, request *Request) error {
+func (m *MarkdownCompiler) Compile(dst io.Writer, src io.Reader, c *Context) error {
 	md := goldmark.New(
 		goldmark.WithExtensions(extension.GFM),
 		goldmark.WithParserOptions(
@@ -41,8 +41,9 @@ func (m *MarkdownCompiler) Compile(dst io.Writer, src io.Reader, request *Reques
 			parser.WithASTTransformers(
 				util.Prioritized(markdown.NewAbsoluteLinkTargetBlankTransformer(), 1),
 				util.Prioritized(markdown.NewUrlTransformer(func(url string) string {
-					rewritten, err := request.bundler.RewriteContentUrl(request, url)
+					rewritten, err := c.RewriteContentUrl(url)
 					if err != nil {
+						// Ignore error and return original url.
 						return url
 					}
 					return rewritten
@@ -60,5 +61,5 @@ func (m *MarkdownCompiler) Compile(dst io.Writer, src io.Reader, request *Reques
 		return fmt.Errorf("could not convert Markdown: %w", err)
 	}
 
-	return m.layout.Render(dst, request, template.HTML(content.String()))
+	return m.layout.Render(dst, c, template.HTML(content.String()))
 }
