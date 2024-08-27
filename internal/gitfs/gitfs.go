@@ -183,12 +183,17 @@ func (g *GitFile) ReadDir(n int) ([]fs.DirEntry, error) {
 	var entries []fs.DirEntry
 	for ; g.pos < c; g.pos++ {
 		inf := g.filesys.paths[g.pos]
-		if !strings.HasPrefix(inf.path, filepath.Join(info.path, "/")) {
+		prefix := info.path + "/"
+		if !strings.HasPrefix(inf.path, prefix) {
 			// Done
 			if len(entries) == 0 {
 				return nil, io.EOF
 			}
 			return entries, nil
+		}
+		// Skip files in subdirectories.
+		if strings.Count(inf.path[len(prefix):], "/") > 0 {
+			continue
 		}
 		entries = append(entries, &GitDirEntry{
 			filesys: g.filesys,
