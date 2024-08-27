@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{.Title}}</title>
+    <meta charset="UTF-8"/>
+
+    <link rel="icon" type="image/x-icon" href="{{asset "images/logo.svg"}}">
+    <link rel="stylesheet" href="{{asset "css/docs.css"}}">
+</head>
+<body class="bg-background">
+
+<div class="flex flex-row">
+    <nav class="fixed overflow-y-auto h-full w-1/4 flex flex-col items-end py-12 bg-sidebar">
+        <div class="w-1/2 mb-4">
+            {{template "logo.svg"}}
+        </div>
+
+        {{template "menu.gohtml" .Menu}}
+    </nav>
+
+    <div class="relative left-1/4 w-5/12 py-11 pl-24">
+        <div>
+            <div class="flex flex-row px-2">
+                <div class="flex-grow"></div>
+                <form class="flex flex-col text-off-white font-extralight">
+                    <label for="version-picker" class="text-xs">Version</label>
+                    <select id="version-picker" class="bg-background py-2 pr-2" onchange="window.location = this.value">
+                        {{range .Versions}}
+                            <option value="{{.Url}}" {{if .IsActive}}selected{{end}}>{{.Version}}</option>
+                        {{end}}
+                    </select>
+                </form>
+            </div>
+
+            <hr class="border-0 border-t border-dotted border-white mt-1 mb-10">
+        </div>
+
+        <div class="content">
+            {{.Content}}
+        </div>
+
+        <div>
+            <hr class="border-0 border-t border-dotted border-white mt-8 mb-4">
+
+            <a href="{{ .GithubUrl }}" target="_blank" class="text-xs text-tertiary hover:underline">Edit this page on
+                Github</a>
+        </div>
+    </div>
+</div>
+
+<script src="{{asset "vendor/prismjs/components/prism-core.min.js"}}"></script>
+<script src="{{asset "vendor/prismjs/plugins/autoloader/prism-autoloader.min.js"}}"></script>
+
+</body>
+</html>

@@ -1,0 +1,72 @@
+@import "prism-theme-dark.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+    @apply h-full;
+}
+
+.content {
+    h1 {
+        @apply font-sans text-primary font-bold text-3xl my-6 -ml-4 pl-4 border-l border-primary;
+    }
+
+    h2 {
+        @apply font-sans text-white font-bold text-2xl mt-10 mb-4;
+
+        &:before {
+            content: '#';
+            @apply absolute text-primary text-base mt-1 -ml-5;
+        }
+    }
+
+    h3 {
+        @apply font-sans text-white font-bold text-xl mt-8 mb-4;
+    }
+
+    h2 {
+        @apply hover:underline hover:underline-offset-4;
+    }
+
+    hr {
+        @apply border-0 border-t border-dotted border-white;
+    }
+
+    p {
+        @apply font-sans text-base text-white leading-8 my-4;
+    }
+
+    a {
+        @apply text-tertiary hover:underline;
+    }
+
+    ul {
+        @apply list-disc ml-8;
+    }
+
+    li {
+        @apply font-sans text-base text-white my-2;
+    }
+
+    img {
+        @apply max-w-full;
+    }
+
+    blockquote {
+        @apply bg-alert my-8 p-6 rounded-lg;
+    }
+
+    :not(pre) code {
+        @apply bg-inline-code rounded px-2 py-0.5;
+    }
+
+    pre:has(code) {
+        @apply bg-codeblock my-4 rounded-md overflow-auto;
+
+        code {
+            @apply inline-block m-5;
+        }
+    }
+}

@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "build": "npx tailwindcss -i ./resources/css/docs.css -o ./public/css/docs.css",
+    "watch": "npx tailwindcss -i ./resources/css/docs.css -o ./public/css/docs.css --watch",
+    "prod": "npx tailwindcss -i ./resources/css/docs.css -o ./public/css/docs.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.10"
+  },
+  "dependencies": {
+    "prismjs": "^1.29.0"
+  }
+}
