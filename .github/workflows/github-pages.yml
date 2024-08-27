@@ -23,7 +23,7 @@ jobs:
         id: configure-pages
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # fetch all commits so versioned documentation can be created.
+          ref: 'main'
           fetch-tags: true
       - uses: ./
         with:
