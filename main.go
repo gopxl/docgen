@@ -18,7 +18,8 @@ import (
 
 //go:embed resources/views/*
 //go:embed public/*
-//go:embed node_modules/prismjs/components/prism-core.min.js
+//go:embed node_modules/prismjs/components/*.min.js
+//go:embed node_modules/prismjs/plugins/autoloader/prism-autoloader.min.js
 var embeddedFs embed.FS
 
 func init() {
@@ -39,7 +40,7 @@ func newBundle(toolingFs fs.FS, repository Repository, docsDir string) (*Bundler
 		TakeDir("public").
 		PutInDir(".")
 	b.FromFs(toolingFs).
-		TakeDir("node_modules/prismjs/components").
+		TakeGlob("node_modules/prismjs/components", "*.min.js").
 		PutInDir("vendor/prismjs/components")
 	b.FromFs(toolingFs).
 		TakeFile("node_modules/prismjs/plugins/autoloader/prism-autoloader.min.js").
@@ -125,6 +126,9 @@ func main() {
 	flag.BoolVar(&serve, "serve", false, "serve the site live through a webserver for development")
 	flag.BoolVar(&debug, "debug", false, "print debugging information")
 	flag.Parse()
+
+	repoDir = filepath.Clean(repoDir)
+	docsDir = filepath.Clean(docsDir)
 
 	var toolingFs fs.FS
 	if serve {

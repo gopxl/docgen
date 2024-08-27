@@ -1,6 +1,7 @@
 # Project
 node_modules/
 public/css/docs.css
+generated/
 
 # IDE
 .idea/
