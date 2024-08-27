@@ -1,0 +1,15 @@
+name: 'gopxl docs'
+author: 'Mark Kremer'
+description: 'A static website generator for the gopxl Markdown documentation'
+inputs:
+  docs-directory:
+    description: 'Path to the documentation directory inside the repository'
+    required: false
+    default: 'docs/'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - "-docs ${{ inputs.docs-directory }}"
+    - "-dest generated/"
+    - "-repository ${{ vars.GITHUB_SERVER_URL }}/${{ vars.GITHUB_REPOSITORY}}"
