@@ -1,6 +1,3 @@
-# This workflow will build a golang project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
-
 name: GitHub Pages
 
 on:
@@ -18,12 +15,13 @@ jobs:
     env:
       DOCS_DIR: 'docs/'
       DEST_DIR: '_site/'
+      BRANCH: 'main'
     steps:
       - uses: actions/configure-pages@v5
         id: configure-pages
       - uses: actions/checkout@v3
         with:
-          ref: 'main'
+          ref: ${{ env.BRANCH }}
           fetch-depth: 0 # checkout a non-shallow copy so the generator can generate docs for all major versions
       - uses: ./
         with:
