@@ -16,14 +16,7 @@ inputs:
 runs:
   using: 'docker'
   image: 'Dockerfile'
-  args:
-    - "-url"
-    - ${{ inputs.deploy-url }}
-    - "-repository-url"
-    - "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY_OWNER/$GITHUB_REPOSITORY"
-    - "-repository"
-    - "./"
-    - "-docs"
-    - ${{ inputs.docs-directory }}
-    - "-dest"
-    - ${{ inputs.destination-directory }}
+  env:
+    DEPLOY_URL: ${{ inputs.deploy-url }}
+    DOCS_DIR: ${{ inputs.docs-directory }}
+    DEST_DIR: ${{ inputs.destination-directory }}

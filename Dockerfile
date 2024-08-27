@@ -15,5 +15,4 @@ RUN npm install
 RUN npm run build
 RUN go build -o /bin/gopxl-docs .
 
-# Code file to execute when the docker container starts up (`entrypoint.sh`)
-ENTRYPOINT ["gopxl-docs"]
+ENTRYPOINT ["./entrypoint.sh"]
