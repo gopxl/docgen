@@ -17,6 +17,7 @@ type PageRenderer struct {
 	layoutFile  string
 	menuFunc    MenuFunc
 	versions    []Version
+	repoUrl     string
 }
 
 type MenuFunc func() ([]MenuItem, error)
@@ -47,13 +48,14 @@ type pageMenuItem struct {
 	IsActive bool
 }
 
-func NewPageRenderer(templateFs fs.FS, templateDir, layoutFile string, menuFunc MenuFunc, versions []Version) *PageRenderer {
+func NewPageRenderer(templateFs fs.FS, templateDir, layoutFile string, menuFunc MenuFunc, versions []Version, repoUrl string) *PageRenderer {
 	return &PageRenderer{
 		templateFs:  templateFs,
 		templateDir: templateDir,
 		layoutFile:  layoutFile,
 		menuFunc:    menuFunc,
 		versions:    versions,
+		repoUrl:     repoUrl,
 	}
 }
 
@@ -104,7 +106,7 @@ func (pr *PageRenderer) loadTemplate(funcMap template.FuncMap) (*template.Templa
 }
 
 func (pr *PageRenderer) pageViewData(request *Request, content any) (page, error) {
-	githubRoot, err := url.Parse("https://github.com/gopxl/pixel/tree/main/docs/") // todo: don't hardcode url
+	githubRoot, err := url.Parse(fmt.Sprintf("%s/tree/main/docs/", pr.repoUrl))
 	if err != nil {
 		return page{}, fmt.Errorf("could not get parse Github url: %w", err)
 	}

@@ -33,7 +33,7 @@ func init() {
 	}
 }
 
-func newBundle(toolingFs fs.FS, repository Repository, docsDir string) (*Bundler, error) {
+func newBundle(toolingFs fs.FS, repository Repository, docsDir string, repoUrl string) (*Bundler, error) {
 	b := NewBundler()
 
 	b.FromFs(toolingFs).
@@ -87,6 +87,7 @@ func newBundle(toolingFs fs.FS, repository Repository, docsDir string) (*Bundler
 				return NewMenuFromFs(docsFs)
 			},
 			versions,
+			repoUrl,
 		)
 
 		b.FromFs(docsFs).
@@ -114,13 +115,15 @@ func main() {
 
 	var rootUrlStr string
 	var repoDir string
+	var repoUrl string
 	var docsDir string
 	var destDir string
 	var serve bool
 	var debug bool
 
-	flag.StringVar(&rootUrlStr, "url", "", "root url the files will be hosted under")
+	flag.StringVar(&rootUrlStr, "url", "", "root url the files will be hosted under (https://owner.github.com/project)")
 	flag.StringVar(&repoDir, "repository", ".", "path to the git repository")
+	flag.StringVar(&repoUrl, "repository-url", ".", "GitHub url of the git repository (https://github.com/owner/project)")
 	flag.StringVar(&docsDir, "docs", "docs", "the directory containing the documentation within the repository")
 	flag.StringVar(&destDir, "dest", "generated", "path to the output directory")
 	flag.BoolVar(&serve, "serve", false, "serve the site live through a webserver for development")
@@ -131,6 +134,7 @@ func main() {
 	docsDir = filepath.Clean(docsDir)
 
 	log.Printf("url: %s", rootUrlStr)
+	log.Printf("repository url: %s", repoUrl)
 	log.Printf("repository directory: %s", repoDir)
 	log.Printf("docs directory: %s", docsDir)
 
@@ -147,7 +151,7 @@ func main() {
 	}
 
 	if debug {
-		b, err := newBundle(toolingFs, repository, docsDir)
+		b, err := newBundle(toolingFs, repository, docsDir, repoUrl)
 		if err != nil {
 			log.Fatalf("could not create bundle: %v", err)
 		}
@@ -169,7 +173,7 @@ func main() {
 				p = path.Join(p, "index.html")
 			}
 
-			b, err := newBundle(toolingFs, repository, docsDir)
+			b, err := newBundle(toolingFs, repository, docsDir, repoUrl)
 			if err != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
 				writer.Write([]byte(fmt.Sprintf("could not create bundle: %v", err)))
@@ -207,7 +211,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("could not parse root url: %v", err)
 		}
-		b, err := newBundle(toolingFs, repository, docsDir)
+		b, err := newBundle(toolingFs, repository, docsDir, repoUrl)
 		if err != nil {
 			log.Fatalf("could not create bundle: %v", err)
 		}
