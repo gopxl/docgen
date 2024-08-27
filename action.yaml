@@ -12,4 +12,4 @@ runs:
   args:
     - "-docs ${{ inputs.docs-directory }}"
     - "-dest generated/"
-    - "-repository ${{ vars.GITHUB_SERVER_URL }}/${{ vars.GITHUB_REPOSITORY}}"
+    - "-repository $GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
