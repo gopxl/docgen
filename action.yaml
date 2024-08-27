@@ -10,6 +10,11 @@ runs:
   using: 'docker'
   image: 'Dockerfile'
   args:
-    - "-docs ${{ inputs.docs-directory }}"
-    - "-dest generated/"
-    - "-repository $GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+    - "-url"
+    - "$GITHUB_REPOSITORY_OWNER.github.io/gopxl-docs-generator"
+    - "-repository"
+    - "./"
+    - "-docs"
+    - ${{ inputs.docs-directory }}
+    - "-dest"
+    - "generated/"
