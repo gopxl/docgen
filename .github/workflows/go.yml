@@ -21,16 +21,10 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
-#      - name: Set up Node
-#        uses: actions/setup-node@v4
-#        with:
-#          node-version: 22
-#          cache: 'npm'
-
-      - name: npm install
+      - name: Install npm packages
         run: npm install
 
-      - name: Run npm build
+      - name: Build with npm
         run: npm run build
 
       - name: Build Go
