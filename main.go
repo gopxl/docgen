@@ -130,6 +130,10 @@ func main() {
 	repoDir = filepath.Clean(repoDir)
 	docsDir = filepath.Clean(docsDir)
 
+	log.Printf("url: %s", rootUrlStr)
+	log.Printf("repository directory: %s", repoDir)
+	log.Printf("docs directory: %s", docsDir)
+
 	var toolingFs fs.FS
 	if serve {
 		toolingFs = os.DirFS(".")

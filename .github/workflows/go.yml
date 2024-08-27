@@ -56,9 +56,9 @@ jobs:
       - uses: ./
         with:
           deploy-url: ${{ steps.configure-pages.outputs.base_url }}
-          docs-directory: $DOCS_DIR
-          destination-directory: $DEST_DIR
+          docs-directory: ${{ env.DOCS_DIR }}
+          destination-directory: ${{ env.DEST_DIR }}
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: $DEST_DIR
+          path: ${{ env.DEST_DIR }}
       - uses: actions/deploy-pages@v4
