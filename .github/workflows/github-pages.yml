@@ -24,6 +24,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0 # fetch all commits so versioned documentation can be created.
+          fetch-tags: true
       - uses: ./
         with:
           deploy-url: ${{ steps.configure-pages.outputs.base_url }}
