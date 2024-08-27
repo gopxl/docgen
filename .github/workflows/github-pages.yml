@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           ref: 'main'
-          fetch-tags: true
+          fetch-depth: 0 # checkout a non-shallow copy so the generator can generate docs for all major versions
       - uses: ./
         with:
           deploy-url: ${{ steps.configure-pages.outputs.base_url }}
