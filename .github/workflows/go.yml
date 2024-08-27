@@ -39,27 +39,3 @@ jobs:
           OUTPUT=$(gofmt -d ./)
           echo "$OUTPUT"
           test -z "$OUTPUT"
-
-  upload-docs:
-    runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      pages: write
-      id-token: write
-    env:
-      DOCS_DIR: 'docs/'
-      DEST_DIR: '_site/'
-    steps:
-      - uses: actions/configure-pages@v5
-        id: configure-pages
-      - uses: actions/checkout@v3
-      - uses: ./
-        with:
-          deploy-url: ${{ steps.configure-pages.outputs.base_url }}
-          repository-url: https://github.com/$GITHUB_REPOSITORY_OWNER/$GITHUB_REPOSITORY
-          docs-directory: ${{ env.DOCS_DIR }}
-          destination-directory: ${{ env.DEST_DIR }}
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: ${{ env.DEST_DIR }}
-      - uses: actions/deploy-pages@v4
