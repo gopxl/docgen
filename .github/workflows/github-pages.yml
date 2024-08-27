@@ -25,7 +25,6 @@ jobs:
       - uses: ./
         with:
           deploy-url: ${{ steps.configure-pages.outputs.base_url }}
-          repository-url: https://github.com/$GITHUB_REPOSITORY_OWNER/$GITHUB_REPOSITORY
           docs-directory: ${{ env.DOCS_DIR }}
           destination-directory: ${{ env.DEST_DIR }}
       - uses: actions/upload-pages-artifact@v3

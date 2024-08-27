@@ -13,9 +13,6 @@ inputs:
   deploy-url:
     description: "URL the site will be deployed to (https://owner.github.com/project)"
     required: true
-  repository-url:
-    description: "GitHub URL of the repository (https://github.com/owner/project)"
-    required: true
 runs:
   using: 'docker'
   image: 'Dockerfile'
@@ -23,7 +20,7 @@ runs:
     - "-url"
     - ${{ inputs.deploy-url }}
     - "-repository-url"
-    - ${{ inputs.repository-url }}
+    - "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY_OWNER/$GITHUB_REPOSITORY"
     - "-repository"
     - "./"
     - "-docs"
