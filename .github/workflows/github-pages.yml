@@ -22,6 +22,8 @@ jobs:
       - uses: actions/configure-pages@v5
         id: configure-pages
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # fetch all commits so versioned documentation can be created.
       - uses: ./
         with:
           deploy-url: ${{ steps.configure-pages.outputs.base_url }}
