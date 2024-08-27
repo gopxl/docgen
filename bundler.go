@@ -165,8 +165,7 @@ func (b *Bundler) RewriteContentUrl(request *Request, l string) (string, error) 
 	}
 
 	// Relative path.
-	u.Path = path.Clean(u.Path)
-	l = u.String()
+	l = path.Clean(u.Path)
 	var targetSrcPath string
 	if len(l) > 0 && l[0] == '/' {
 		// Relative to repository root.
