@@ -48,3 +48,8 @@ jobs:
       - uses: ./
         with:
           docs-directory: "docs/"
+          destination-directory: '_site/'
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: "_site/"
+      - uses: actions/deploy-pages@v4

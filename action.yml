@@ -5,7 +5,11 @@ inputs:
   docs-directory:
     description: 'Path to the documentation directory inside the repository'
     required: false
-    default: 'docs/'
+    default: 'docs'
+  destination-directory:
+    description: 'Directory the generated files will be stored to'
+    required: false
+    default: '_site/'
 runs:
   using: 'docker'
   image: 'Dockerfile'
@@ -17,4 +21,4 @@ runs:
     - "-docs"
     - ${{ inputs.docs-directory }}
     - "-dest"
-    - "generated/"
+    - ${{ inputs.destination-directory }}
