@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Redirecting to {{.RedirectUrl}}</title>
+    <link rel="canonical" href="{{.RedirectUrl}}" />
+    <script>location='{{.RedirectUrl}}';</script>
+    <meta name="robots" content="noindex">
+    <meta http-equiv="refresh" content="0; URL={{.RedirectUrl}}" />
+</head>
+<body>
+    Click the following link if you're not redirected: <a href="{{.RedirectUrl}}">{{.RedirectUrl}}</a>
+</body>
+</html>

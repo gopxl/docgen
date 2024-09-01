@@ -42,9 +42,25 @@ func newBundle(toolingFs fs.FS, versions []Version, docsDir, repoUrl string, roo
 
 	// Compile docs for each version.
 	for _, v := range versions {
+		if v.IsDefault {
+			b.Redirect(&url.URL{Path: "/"}, &url.URL{Path: v.Name}).
+				PutInDir(".")
+		}
+
 		docsFs, err := fs.Sub(v.FS, docsDir)
 		if err != nil {
 			return nil, fmt.Errorf("could not open the %s documentation subdirectory: %w", docsDir, err)
+		}
+
+		s, err := readSettings(docsFs)
+		if err != nil {
+			return nil, err
+		}
+
+		for from, to := range s.Redirects {
+			b.Redirect(&from, &to).
+				WithTargetFs(docsFs).
+				PutInDir(v.Name)
 		}
 
 		renderer := NewPageRenderer(
@@ -66,7 +82,7 @@ func newBundle(toolingFs fs.FS, versions []Version, docsDir, repoUrl string, roo
 		b.FromFs(docsFs).
 			TakeDir(".").
 			Filter(func(file string) bool {
-				return filepath.Ext(file) != ".md"
+				return filepath.Ext(file) != ".md" && file != settingsFile
 			}).
 			PutInDir(v.Name)
 	}
@@ -139,11 +155,6 @@ func main() {
 
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-			pth := path.Clean(strings.TrimLeft(request.URL.Path, "/"))
-			if len(path.Ext(pth)) == 0 {
-				pth = path.Join(pth, "index.html")
-			}
-
 			b, err := newBundle(embeddedFs, versions, docsDir, repoUrl, rootUrl)
 			if err != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
@@ -151,12 +162,18 @@ func main() {
 				return
 			}
 
+			pth := path.Clean(strings.TrimLeft(request.URL.Path, "/"))
 			var buf bytes.Buffer
 			err = b.CompileFileToWriter(pth, &buf)
 			if errors.Is(err, fs.ErrNotExist) {
-				writer.WriteHeader(http.StatusNotFound)
-				_, _ = writer.Write([]byte("Not Found"))
-				return
+				// Try index.html instead.
+				pth = path.Join(pth, "index.html")
+				err = b.CompileFileToWriter(pth, &buf)
+				if errors.Is(err, fs.ErrNotExist) {
+					writer.WriteHeader(http.StatusNotFound)
+					_, _ = writer.Write([]byte("Not Found"))
+					return
+				}
 			}
 			if err != nil {
 				writer.WriteHeader(http.StatusInternalServerError)

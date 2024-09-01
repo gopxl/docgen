@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"io/fs"
 	"net/url"
@@ -58,7 +59,8 @@ func (c *Context) RewriteContentUrl(link string) (string, error) {
 }
 
 type Bundler struct {
-	rules []*MappingRule
+	rules     []*MappingRule
+	redirects []*RedirectRule
 }
 
 func NewBundler() *Bundler {
@@ -74,12 +76,23 @@ func (b *Bundler) FromFs(fs fs.FS) *MappingRule {
 	return r
 }
 
+func (b *Bundler) Redirect(from, to *url.URL) *RedirectRule {
+	r := &RedirectRule{
+		from: from,
+		to:   to,
+	}
+	b.redirects = append(b.redirects, r)
+	return r
+}
+
 func (b *Bundler) Compile(rootUrl *url.URL) (*Bundle, error) {
 	bun := Bundle{
-		rootUrl:  rootUrl,
-		files:    nil,
-		srcPaths: make(map[fs.FS]map[string]*Mapping),
-		dstPaths: make(map[string]*Mapping),
+		rootUrl:      rootUrl,
+		files:        nil,
+		srcPaths:     make(map[fs.FS]map[string]*Mapping),
+		dstPaths:     make(map[string]*Mapping),
+		redirects:    nil,
+		redirectsMap: make(map[string]*redirect),
 	}
 	for _, r := range b.rules {
 		srcPaths, err := r.sourceFiles()
@@ -109,7 +122,64 @@ func (b *Bundler) Compile(rootUrl *url.URL) (*Bundle, error) {
 		bun.srcPaths[f.srcFs][f.srcPath] = &bun.files[i]
 		bun.dstPaths[f.dstPath] = &bun.files[i]
 	}
+	bun.redirects = make([]redirect, len(b.redirects))
+	for i, r := range b.redirects {
+		from, err := r.compileFrom()
+		if err != nil {
+			return nil, err
+		}
+		to, err := r.compileTo(&bun)
+		if err != nil {
+			return nil, err
+		}
+		cr := redirect{
+			from: from,
+			to:   to,
+		}
+		bun.redirects[i] = cr
+		bun.redirectsMap[cr.from] = &bun.redirects[i]
+	}
 	return &bun, nil
+}
+
+type RedirectRule struct {
+	from   *url.URL
+	to     *url.URL
+	toFs   fs.FS // for local redirects
+	dstDir string
+}
+
+func (r *RedirectRule) PutInDir(dir string) *RedirectRule {
+	r.dstDir = dir
+	return r
+}
+
+func (r *RedirectRule) WithTargetFs(fs fs.FS) *RedirectRule {
+	r.toFs = fs
+	return r
+}
+
+func (r *RedirectRule) compileFrom() (string, error) {
+	if r.from.IsAbs() {
+		return "", errors.New(fmt.Sprintf("the path to redirect must be a local path, was %s", r.from.String()))
+	}
+	from := filepath.Join(r.dstDir, r.from.Path)
+	if filepath.Ext(from) != ".html" {
+		from = filepath.Join(from, "index.html")
+	}
+	return from, nil
+}
+
+func (r *RedirectRule) compileTo(bun *Bundle) (*url.URL, error) {
+	if r.to.IsAbs() || r.toFs == nil {
+		return r.to, nil
+	}
+	srcPath := filepath.Clean(strings.TrimLeft(r.to.Path, "/"))
+	f, ok := bun.srcPaths[r.toFs][srcPath]
+	if !ok {
+		return nil, fmt.Errorf("redirect destination %s not found: %w", r.to, fs.ErrNotExist)
+	}
+	return bun.rootUrl.JoinPath(f.dstPath), nil
 }
 
 type srcFilesLister func(filesystem fs.FS) ([]string, error)
@@ -219,10 +289,12 @@ func (c *copyCompiler) Compile(dst io.Writer, src io.Reader, request *Context) e
 }
 
 type Bundle struct {
-	rootUrl  *url.URL
-	files    []Mapping
-	srcPaths map[fs.FS]map[string]*Mapping
-	dstPaths map[string]*Mapping
+	rootUrl      *url.URL
+	files        []Mapping
+	srcPaths     map[fs.FS]map[string]*Mapping
+	dstPaths     map[string]*Mapping
+	redirects    []redirect
+	redirectsMap map[string]*redirect // [from]redirect
 }
 
 type Mapping struct {
@@ -230,6 +302,11 @@ type Mapping struct {
 	srcPath  string
 	dstPath  string
 	compiler Compiler
+}
+
+type redirect struct {
+	from string
+	to   *url.URL
 }
 
 func (m *Mapping) Open() (fs.File, error) {
@@ -247,6 +324,11 @@ func (bun *Bundle) DestFiles() []string {
 func (bun *Bundle) CompileAllToDir(dir string) error {
 	for i := range bun.files {
 		if err := bun.compileFileToDir(&bun.files[i], dir); err != nil {
+			return err
+		}
+	}
+	for i := range bun.redirects {
+		if err := bun.compileRedirectToDir(&bun.redirects[i], dir); err != nil {
 			return err
 		}
 	}
@@ -269,15 +351,33 @@ func (bun *Bundle) compileFileToDir(f *Mapping, dir string) error {
 	return bun.compileFileToWriter(f, dst)
 }
 
+func (bun *Bundle) compileRedirectToDir(r *redirect, dir string) error {
+	absDstPath := filepath.Join(dir, r.from)
+
+	err := os.MkdirAll(filepath.Dir(absDstPath), 0755)
+	if err != nil {
+		return fmt.Errorf("could not create directory for output file %v: %w", absDstPath, err)
+	}
+	dst, err := os.OpenFile(absDstPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return fmt.Errorf("could not open output file %v: %w", dir, err)
+	}
+	defer dst.Close()
+
+	return bun.compileRedirectToWriter(r, dst)
+}
+
 // CompileFileToWriter accepts the destination path pth of a file and writes
 // its compiled contents to writer w.
 func (bun *Bundle) CompileFileToWriter(pth string, w io.Writer) error {
 	pth = path.Clean(pth)
-	f, ok := bun.dstPaths[pth]
-	if !ok {
-		return fs.ErrNotExist
+	if f, ok := bun.dstPaths[pth]; ok {
+		return bun.compileFileToWriter(f, w)
 	}
-	return bun.compileFileToWriter(f, w)
+	if r, ok := bun.redirectsMap[pth]; ok {
+		return bun.compileRedirectToWriter(r, w)
+	}
+	return fs.ErrNotExist
 }
 
 func (bun *Bundle) compileFileToWriter(f *Mapping, w io.Writer) error {
@@ -292,6 +392,24 @@ func (bun *Bundle) compileFileToWriter(f *Mapping, w io.Writer) error {
 	})
 	if err != nil {
 		return fmt.Errorf("could not compile file %v: %w", f.srcPath, err)
+	}
+	return nil
+}
+
+func (bun *Bundle) compileRedirectToWriter(r *redirect, w io.Writer) error {
+	const file = "resources/views/redirect.gohtml"
+	t, err := template.ParseFS(embeddedFs, file)
+	if err != nil {
+		return fmt.Errorf("could not parse redirect template %s: %w", file, err)
+	}
+
+	err = t.Execute(w, struct {
+		RedirectUrl string
+	}{
+		RedirectUrl: r.to.String(),
+	})
+	if err != nil {
+		return fmt.Errorf("error executing redirect template: %w", err)
 	}
 	return nil
 }

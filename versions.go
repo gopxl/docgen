@@ -12,12 +12,28 @@ import (
 )
 
 type Version struct {
-	Name    string
-	Version *semver.Version
-	FS      fs.FS
+	Name      string
+	Version   *semver.Version
+	IsDefault bool
+	FS        fs.FS
 }
 
+type preferredVersion byte
+
+const (
+	preferLatestTag preferredVersion = iota
+	preferWorkingDir
+	preferMainBranch
+)
+
 func GetDocVersions(repoDir, docsDir, mainBranch string, withWorkingDir bool) ([]Version, error) {
+	var prefVersion preferredVersion
+	if withWorkingDir {
+		prefVersion = preferWorkingDir
+	} else {
+		prefVersion = preferLatestTag
+	}
+
 	repo, err := NewGitRepository(repoDir)
 	if err != nil {
 		return nil, fmt.Errorf("could not open git repository: %w", err)
@@ -57,6 +73,13 @@ func GetDocVersions(repoDir, docsDir, mainBranch string, withWorkingDir bool) ([
 	sort.Slice(versions, func(i, j int) bool {
 		return versions[j].Version.LessThan(versions[i].Version)
 	})
+	if prefVersion == preferLatestTag {
+		if len(versions) > 0 {
+			versions[0].IsDefault = true
+		} else {
+			prefVersion = preferMainBranch
+		}
+	}
 
 	branch, err := repo.Branch(mainBranch)
 	if err != nil {
@@ -72,9 +95,10 @@ func GetDocVersions(repoDir, docsDir, mainBranch string, withWorkingDir bool) ([
 	} else {
 		versions = append([]Version{
 			{
-				Name:    mainBranch,
-				Version: nil,
-				FS:      filesys,
+				Name:      mainBranch,
+				Version:   nil,
+				IsDefault: prefVersion == preferMainBranch,
+				FS:        filesys,
 			},
 		}, versions...)
 	}
@@ -82,9 +106,10 @@ func GetDocVersions(repoDir, docsDir, mainBranch string, withWorkingDir bool) ([
 	if withWorkingDir {
 		versions = append([]Version{
 			{
-				Name:    "dev",
-				Version: nil,
-				FS:      os.DirFS(repoDir),
+				Name:      "dev",
+				Version:   nil,
+				IsDefault: prefVersion == preferWorkingDir,
+				FS:        os.DirFS(repoDir),
 			},
 		}, versions...)
 	}
