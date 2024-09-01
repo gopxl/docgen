@@ -131,21 +131,15 @@ func (pr *PageRenderer) pageViewData(c *Context, content any) (page, error) {
 }
 
 func (pr *PageRenderer) versionsViewData(c *Context) ([]pageVersionOption, error) {
-	versions := pr.versions
-	// Reverse order.
-	for i, j := 0, len(versions)-1; i < j; i, j = i+1, j-1 {
-		versions[i], versions[j] = versions[j], versions[i]
-	}
-
 	var vs []pageVersionOption
-	for _, v := range versions {
+	for _, v := range pr.versions {
 		// todo: if the current page exists in the target version,
 		//       make the url point to that page.
 
 		vs = append(vs, pageVersionOption{
-			Version:  v.DisplayName(),
-			Url:      c.ToAbsUrl(v.DisplayName()).String(),
-			IsActive: c.GetUriSegment(0) == v.DisplayName(),
+			Version:  v.Name,
+			Url:      c.ToAbsUrl(v.Name).String(),
+			IsActive: c.GetUriSegment(0) == v.Name,
 		})
 	}
 	return vs, nil

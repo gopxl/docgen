@@ -3,40 +3,23 @@ package main
 import (
 	"fmt"
 	"io/fs"
-	"sort"
 
 	"github.com/MarkKremer/gopxl-docs/internal/gitfs"
-	"github.com/Masterminds/semver/v3"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/pkg/errors"
 )
-
-type Repository interface {
-	Versions() ([]Version, error)
-	FS(version Version) (fs.FS, error)
-}
-
-type Version interface {
-	DisplayName() string
-}
 
 type GitRepository struct {
 	path       string
 	repository *git.Repository
 }
 
-type GitVersion struct {
-	v   *semver.Version
+type GitReference struct {
 	ref *plumbing.Reference
 }
 
-func (g *GitVersion) DisplayName() string {
-	if g.v == nil {
-		return g.ref.Name().Short()
-	} else {
-		return fmt.Sprintf("v%d.x", g.v.Major())
-	}
+func (g *GitReference) Name() string {
+	return g.ref.Name().Short()
 }
 
 func NewGitRepository(path string) (*GitRepository, error) {
@@ -51,58 +34,40 @@ func NewGitRepository(path string) (*GitRepository, error) {
 	}, nil
 }
 
-func (gr *GitRepository) Versions() ([]Version, error) {
-	ts, err := gr.repository.Tags()
+func (gr *GitRepository) Branch(name string) (*GitReference, error) {
+	branch, err := gr.repository.Branch(name)
+	if err != nil {
+		return nil, fmt.Errorf("could not read Git branch %s: %w", name, err)
+	}
+	ref, err := gr.repository.Reference(branch.Merge, true)
+	if err != nil {
+		return nil, fmt.Errorf("could not get reference for branch %s: %w", name, err)
+	}
+	return &GitReference{
+		ref: ref,
+	}, nil
+}
+
+func (gr *GitRepository) Tags() ([]*GitReference, error) {
+	tags, err := gr.repository.Tags()
 	if err != nil {
 		return nil, fmt.Errorf("could not read Git tags: %w", err)
 	}
-	// Get the newest tag of each major version.
-	majors := make(map[uint64]*GitVersion)
-	err = ts.ForEach(func(reference *plumbing.Reference) error {
-		v, err := semver.NewVersion(reference.Name().Short())
-		if err != nil {
-			return fmt.Errorf("could not parse tag %s as version: %w", reference.Name().Short(), err)
-		}
-		// Store version if there is no newer version stored.
-		if other, ok := majors[v.Major()]; !ok || other.v.LessThan(v) {
-			majors[v.Major()] = &GitVersion{
-				v:   v,
-				ref: reference,
-			}
-		}
+	var ts []*GitReference
+	err = tags.ForEach(func(reference *plumbing.Reference) error {
+		ts = append(ts, &GitReference{
+			ref: reference,
+		})
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("could not iterate Git tags: %w", err)
+		return nil, fmt.Errorf("error iterating Git tags: %w", err)
 	}
-
-	var versions []Version
-	for _, v := range majors {
-		versions = append(versions, v)
-	}
-	sort.Slice(versions, func(i, j int) bool {
-		return versions[i].(*GitVersion).v.LessThan(versions[j].(*GitVersion).v)
-	})
-
-	// Get either the main branch or head.
-	head, err := gr.repository.Head()
-	if err != nil {
-		return nil, fmt.Errorf("could not get HEAD commit: %w", err)
-	}
-	versions = append(versions, &GitVersion{
-		v:   nil,
-		ref: head,
-	})
-
-	return versions, nil
+	return ts, nil
 }
 
-func (gr *GitRepository) FS(version Version) (fs.FS, error) {
-	gv, ok := version.(*GitVersion)
-	if !ok {
-		return nil, errors.New("the provided version is not a GitVersion")
-	}
-	obj, err := gr.repository.CommitObject(gv.ref.Hash())
+func (gr *GitRepository) FS(tag *GitReference) (fs.FS, error) {
+	obj, err := gr.repository.CommitObject(tag.ref.Hash())
 	if err != nil {
 		return nil, fmt.Errorf("could not get commit object from repository: %w", err)
 	}

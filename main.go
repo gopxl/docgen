@@ -27,7 +27,7 @@ func init() {
 	}
 }
 
-func newBundle(toolingFs fs.FS, repository Repository, docsDir, repoUrl string, rootUrl *url.URL) (*Bundle, error) {
+func newBundle(toolingFs fs.FS, versions []Version, docsDir, repoUrl string, rootUrl *url.URL) (*Bundle, error) {
 	b := NewBundler()
 
 	b.FromFs(toolingFs).
@@ -40,35 +40,9 @@ func newBundle(toolingFs fs.FS, repository Repository, docsDir, repoUrl string, 
 		TakeFile("node_modules/prismjs/plugins/autoloader/prism-autoloader.min.js").
 		PutInDir("vendor/prismjs/plugins/autoloader")
 
-	// Check which versions have a docs directory.
-	versions, err := repository.Versions()
-	if err != nil {
-		return nil, fmt.Errorf("could not get versions from repository: %w", err)
-	}
-	for i := 0; i < len(versions); i++ {
-		v := versions[i]
-		versionFs, err := repository.FS(v)
-		if err != nil {
-			return nil, fmt.Errorf("could not open the repository as a filesystem: %w", err)
-		}
-		_, err = versionFs.Open(docsDir)
-		if errors.Is(err, fs.ErrNotExist) {
-			versions = append(versions[:i], versions[i+1:]...)
-			i--
-			continue
-		}
-		if err != nil {
-			return nil, fmt.Errorf("could not open the %s documentation subdirectory: %w", docsDir, err)
-		}
-	}
-
 	// Compile docs for each version.
 	for _, v := range versions {
-		versionFs, err := repository.FS(v)
-		if err != nil {
-			return nil, fmt.Errorf("could not open the repository as a filesystem: %w", err)
-		}
-		docsFs, err := fs.Sub(versionFs, docsDir)
+		docsFs, err := fs.Sub(v.FS, docsDir)
 		if err != nil {
 			return nil, fmt.Errorf("could not open the %s documentation subdirectory: %w", docsDir, err)
 		}
@@ -87,14 +61,14 @@ func newBundle(toolingFs fs.FS, repository Repository, docsDir, repoUrl string, 
 		b.FromFs(docsFs).
 			TakeGlob(".", "**/*.md").
 			CompileWith(NewMarkdownCompiler(renderer)).
-			PutInDir(v.DisplayName())
+			PutInDir(v.Name)
 
 		b.FromFs(docsFs).
 			TakeDir(".").
 			Filter(func(file string) bool {
 				return filepath.Ext(file) != ".md"
 			}).
-			PutInDir(v.DisplayName())
+			PutInDir(v.Name)
 	}
 
 	return b.Compile(rootUrl)
@@ -110,17 +84,21 @@ func main() {
 	var rootUrlStr string
 	var repoDir string
 	var repoUrl string
+	var mainBranch string
 	var docsDir string
 	var destDir string
 	var serve bool
+	var dev bool
 	var debug bool
 
 	flag.StringVar(&rootUrlStr, "url", "", "root url the files will be hosted under (https://owner.github.com/project)")
 	flag.StringVar(&repoDir, "repository", ".", "path to the git repository")
 	flag.StringVar(&repoUrl, "repository-url", ".", "GitHub url of the git repository (https://github.com/owner/project)")
+	flag.StringVar(&mainBranch, "main-branch", "main", "Branch to include in the version list")
 	flag.StringVar(&docsDir, "docs", "docs", "the directory containing the documentation within the repository")
 	flag.StringVar(&destDir, "dest", "generated", "path to the output directory")
-	flag.BoolVar(&serve, "serve", false, "serve the site live through a webserver for development")
+	flag.BoolVar(&serve, "serve", false, "serve the site through a webserver for development")
+	flag.BoolVar(&dev, "dev", false, "include the local working directory of the repository as a published version")
 	flag.BoolVar(&debug, "debug", false, "print debugging information")
 	flag.Parse()
 
@@ -137,13 +115,13 @@ func main() {
 	log.Printf("repository directory: %s", repoDir)
 	log.Printf("docs directory: %s", docsDir)
 
-	repository, err := NewGitRepository(repoDir)
+	versions, err := GetDocVersions(repoDir, docsDir, mainBranch, dev)
 	if err != nil {
-		log.Fatalf("could not open Git repository: %v", err)
+		log.Fatalf("could not determine publishable versions: %w", err)
 	}
 
 	if debug {
-		bun, err := newBundle(embeddedFs, repository, docsDir, repoUrl, rootUrl)
+		bun, err := newBundle(embeddedFs, versions, docsDir, repoUrl, rootUrl)
 		if err != nil {
 			log.Fatalf("could not create bundle: %v", err)
 		}
@@ -166,7 +144,7 @@ func main() {
 				pth = path.Join(pth, "index.html")
 			}
 
-			b, err := newBundle(embeddedFs, repository, docsDir, repoUrl, rootUrl)
+			b, err := newBundle(embeddedFs, versions, docsDir, repoUrl, rootUrl)
 			if err != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
 				writer.Write([]byte(fmt.Sprintf("could not create bundle: %v", err)))
@@ -200,7 +178,7 @@ func main() {
 		}
 	} else {
 		log.Println("compiling...")
-		b, err := newBundle(embeddedFs, repository, docsDir, repoUrl, rootUrl)
+		b, err := newBundle(embeddedFs, versions, docsDir, repoUrl, rootUrl)
 		if err != nil {
 			log.Fatalf("could not create bundle: %v", err)
 		}
