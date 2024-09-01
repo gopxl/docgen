@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"embed"
 	"errors"
 	"flag"
 	"fmt"
@@ -16,12 +15,6 @@ import (
 	"path/filepath"
 	"strings"
 )
-
-//go:embed resources/views/*
-//go:embed public/*
-//go:embed node_modules/prismjs/components/*.min.js
-//go:embed node_modules/prismjs/plugins/autoloader/prism-autoloader.min.js
-var embeddedFs embed.FS
 
 func init() {
 	err := mime.AddExtensionType(".css", "text/css")
@@ -144,20 +137,13 @@ func main() {
 	log.Printf("repository directory: %s", repoDir)
 	log.Printf("docs directory: %s", docsDir)
 
-	var toolingFs fs.FS
-	if serve {
-		toolingFs = os.DirFS(".")
-	} else {
-		toolingFs = embeddedFs
-	}
-
 	repository, err := NewGitRepository(repoDir)
 	if err != nil {
 		log.Fatalf("could not open Git repository: %v", err)
 	}
 
 	if debug {
-		bun, err := newBundle(toolingFs, repository, docsDir, repoUrl, rootUrl)
+		bun, err := newBundle(embeddedFs, repository, docsDir, repoUrl, rootUrl)
 		if err != nil {
 			log.Fatalf("could not create bundle: %v", err)
 		}
@@ -180,7 +166,7 @@ func main() {
 				pth = path.Join(pth, "index.html")
 			}
 
-			b, err := newBundle(toolingFs, repository, docsDir, repoUrl, rootUrl)
+			b, err := newBundle(embeddedFs, repository, docsDir, repoUrl, rootUrl)
 			if err != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
 				writer.Write([]byte(fmt.Sprintf("could not create bundle: %v", err)))
@@ -214,7 +200,7 @@ func main() {
 		}
 	} else {
 		log.Println("compiling...")
-		b, err := newBundle(toolingFs, repository, docsDir, repoUrl, rootUrl)
+		b, err := newBundle(embeddedFs, repository, docsDir, repoUrl, rootUrl)
 		if err != nil {
 			log.Fatalf("could not create bundle: %v", err)
 		}
