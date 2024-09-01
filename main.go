@@ -147,7 +147,7 @@ func main() {
 			b, err := newBundle(embeddedFs, versions, docsDir, repoUrl, rootUrl)
 			if err != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
-				writer.Write([]byte(fmt.Sprintf("could not create bundle: %v", err)))
+				_, _ = writer.Write([]byte(fmt.Sprintf("could not create bundle: %v", err)))
 				return
 			}
 
@@ -155,17 +155,17 @@ func main() {
 			err = b.CompileFileToWriter(pth, &buf)
 			if errors.Is(err, fs.ErrNotExist) {
 				writer.WriteHeader(http.StatusNotFound)
-				writer.Write([]byte("Not Found"))
+				_, _ = writer.Write([]byte("Not Found"))
 				return
 			}
 			if err != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
-				writer.Write([]byte(fmt.Sprintf("could not write file: %v", err)))
+				_, _ = writer.Write([]byte(fmt.Sprintf("could not write file: %v", err)))
 				return
 			}
 
 			writer.Header().Add("Content-Type", mime.TypeByExtension(filepath.Ext(pth)))
-			writer.Write(buf.Bytes())
+			_, _ = writer.Write(buf.Bytes())
 		})
 		s := &http.Server{
 			Addr:    fmt.Sprintf(":%s", rootUrl.Port()),

@@ -21,7 +21,6 @@ type PageRenderer struct {
 }
 
 type MenuFunc func() ([]MenuItem, error)
-type VersionsFunc func() ([]string, error)
 
 type page struct {
 	Title     string
