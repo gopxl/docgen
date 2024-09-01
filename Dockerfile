@@ -13,6 +13,6 @@ COPY ./ ./
 
 RUN npm install
 RUN npm run build
-RUN go build -o /bin/gopxl-docs .
+RUN go build -tags embed -o /bin/gopxl-docs .
 
 ENTRYPOINT ["./entrypoint.sh"]
