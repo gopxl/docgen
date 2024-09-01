@@ -117,7 +117,7 @@ func main() {
 
 	versions, err := GetDocVersions(repoDir, docsDir, mainBranch, dev)
 	if err != nil {
-		log.Fatalf("could not determine publishable versions: %w", err)
+		log.Fatalf("could not determine publishable versions: %v", err)
 	}
 
 	if debug {
