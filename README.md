@@ -1,3 +1,4 @@
-# gopxl documentation site generator
+# Docgen
+A static-site generator for the gopxl documentation.
 
-[Go to the documentation](https://gopxl.github.io/docs/main/01.%20Getting%20Started/01.%20Installation.html)
+[Go to the documentation of docgen](https://gopxl.github.io/docgen/main/)
