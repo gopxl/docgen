@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"io/fs"
 
-	"github.com/MarkKremer/gopxl-docs/internal/gitfs"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/gopxl/docgen/internal/gitfs"
 )
 
 type GitRepository struct {

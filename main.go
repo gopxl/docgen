@@ -42,11 +42,6 @@ func newBundle(toolingFs fs.FS, versions []Version, docsDir, repoUrl string, roo
 
 	// Compile docs for each version.
 	for _, v := range versions {
-		if v.IsDefault {
-			b.Redirect(&url.URL{Path: "/"}, &url.URL{Path: v.Name}).
-				PutInDir(".")
-		}
-
 		docsFs, err := fs.Sub(v.FS, docsDir)
 		if err != nil {
 			return nil, fmt.Errorf("could not open the %s documentation subdirectory: %w", docsDir, err)
@@ -57,6 +52,35 @@ func newBundle(toolingFs fs.FS, versions []Version, docsDir, repoUrl string, roo
 			return nil, err
 		}
 
+		pageRenamer := NewCompositeRewriter(
+			&SectionDirectoryRenamer{},
+			&PageFileRenamer{},
+			&MarkdownCompiler{},
+		)
+
+		menuItems, err := NewMenuFromFs(docsFs)
+
+		// Add redirect from root url to default version.
+		if v.IsDefault {
+			b.Redirect(&url.URL{Path: "/index.html"}, &url.URL{Path: v.Name}).
+				PutInDir(".")
+		}
+
+		// Default redirect: from version root to first section.
+		if len(menuItems) > 0 {
+			b.Redirect(&url.URL{Path: "/index.html"}, &url.URL{Path: menuItems[0].Items[0].Path}).
+				WithTargetFs(docsFs).
+				PutInDir(v.Name)
+		}
+
+		// Default redirect: from section root to first page in section.
+		for _, item := range menuItems {
+			b.Redirect(&url.URL{Path: (&SectionDirectoryRenamer{}).Rename(item.Path + "/index.html")}, &url.URL{Path: item.Items[0].Path}).
+				WithTargetFs(docsFs).
+				PutInDir(v.Name)
+		}
+
+		// Add configured redirects.
 		for from, to := range s.Redirects {
 			b.Redirect(&from, &to).
 				WithTargetFs(docsFs).
@@ -67,15 +91,14 @@ func newBundle(toolingFs fs.FS, versions []Version, docsDir, repoUrl string, roo
 			toolingFs,
 			"resources/views",
 			"layout.gohtml",
-			func() ([]MenuItem, error) {
-				return NewMenuFromFs(docsFs)
-			},
+			menuItems,
 			versions,
 			repoUrl,
 		)
 
 		b.FromFs(docsFs).
 			TakeGlob(".", "**/*.md").
+			RenameWith(pageRenamer).
 			CompileWith(NewMarkdownCompiler(renderer)).
 			PutInDir(v.Name)
 
@@ -84,6 +107,7 @@ func newBundle(toolingFs fs.FS, versions []Version, docsDir, repoUrl string, roo
 			Filter(func(file string) bool {
 				return filepath.Ext(file) != ".md" && file != settingsFile
 			}).
+			RenameWith(&SectionDirectoryRenamer{}).
 			PutInDir(v.Name)
 	}
 

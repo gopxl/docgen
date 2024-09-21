@@ -70,6 +70,7 @@ func NewBundler() *Bundler {
 func (b *Bundler) FromFs(fs fs.FS) *MappingRule {
 	r := &MappingRule{
 		srcFs:    fs,
+		renamer:  &nullRenamer{},
 		compiler: &copyCompiler{},
 	}
 	b.rules = append(b.rules, r)
@@ -191,6 +192,7 @@ type MappingRule struct {
 	srcFilesLister srcFilesLister
 	srcFileFilter  srcFileFilter
 	dstDir         string
+	renamer        Renamer
 	compiler       Compiler
 }
 
@@ -239,6 +241,11 @@ func (b *MappingRule) CompileWith(compiler Compiler) *MappingRule {
 	return b
 }
 
+func (b *MappingRule) RenameWith(renamer Renamer) *MappingRule {
+	b.renamer = renamer
+	return b
+}
+
 func (b *MappingRule) PutInDir(dir string) {
 	b.dstDir = dir
 }
@@ -265,23 +272,18 @@ func (b *MappingRule) DestPath(srcPath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not get relative path of file %v to source directory %v: %w", srcPath, b.srcDir, err)
 	}
+
 	return filepath.Join(
 		b.dstDir,
-		filepath.Dir(rel),
-		b.compiler.OutputFileName(filepath.Base(rel)),
+		b.renamer.Rename(rel),
 	), nil
 }
 
 type Compiler interface {
-	OutputFileName(oldName string) (newName string)
 	Compile(dst io.Writer, src io.Reader, request *Context) error
 }
 
 type copyCompiler struct{}
-
-func (c *copyCompiler) OutputFileName(oldName string) (newName string) {
-	return oldName
-}
 
 func (c *copyCompiler) Compile(dst io.Writer, src io.Reader, request *Context) error {
 	_, err := io.Copy(dst, src)

@@ -15,7 +15,7 @@ type PageRenderer struct {
 	templateFs  fs.FS
 	templateDir string
 	layoutFile  string
-	menuFunc    MenuFunc
+	menuItems   []MenuItem
 	versions    []Version
 	repoUrl     string
 }
@@ -47,12 +47,12 @@ type pageMenuItem struct {
 	IsActive bool
 }
 
-func NewPageRenderer(templateFs fs.FS, templateDir, layoutFile string, menuFunc MenuFunc, versions []Version, repoUrl string) *PageRenderer {
+func NewPageRenderer(templateFs fs.FS, templateDir, layoutFile string, menuItems []MenuItem, versions []Version, repoUrl string) *PageRenderer {
 	return &PageRenderer{
 		templateFs:  templateFs,
 		templateDir: templateDir,
 		layoutFile:  layoutFile,
-		menuFunc:    menuFunc,
+		menuItems:   menuItems,
 		versions:    versions,
 		repoUrl:     repoUrl,
 	}
@@ -145,13 +145,8 @@ func (pr *PageRenderer) versionsViewData(c *Context) ([]pageVersionOption, error
 }
 
 func (pr *PageRenderer) menuViewData(c *Context) ([]pageMenuSection, error) {
-	menu, err := pr.menuFunc()
-	if err != nil {
-		return nil, fmt.Errorf("could not get menu: %w", err)
-	}
-
 	var sections []pageMenuSection
-	for _, item := range menu {
+	for _, item := range pr.menuItems {
 		if !item.IsDir {
 			continue
 		}
@@ -162,11 +157,14 @@ func (pr *PageRenderer) menuViewData(c *Context) ([]pageMenuSection, error) {
 			if sub.IsDir {
 				continue
 			}
-			uri := path.Join(c.GetUriSegment(0), sub.Path)
+			uri, err := c.RewriteContentUrl(path.Join("/", sub.Path))
+			if err != nil {
+				return nil, fmt.Errorf("could not get rewritten url to %s: %w", sub.Path, err)
+			}
 			itm := pageMenuItem{
 				Title:    sub.Title,
-				Url:      c.ToAbsUrl(uri).String(),
-				IsActive: c.mapping.dstPath == uri,
+				Url:      uri,
+				IsActive: c.mapping.srcPath == sub.Path,
 			}
 			s.Items = append(s.Items, itm)
 		}

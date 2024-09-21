@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/MarkKremer/gopxl-docs/internal/markdown"
+	"github.com/gopxl/docgen/internal/markdown"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
@@ -29,8 +29,8 @@ func NewMarkdownCompiler(layout Renderer) *MarkdownCompiler {
 	}
 }
 
-func (m *MarkdownCompiler) OutputFileName(oldName string) (newName string) {
-	return strings.TrimSuffix(oldName, filepath.Ext(oldName)) + ".html"
+func (m *MarkdownCompiler) Rename(p string) string {
+	return strings.TrimSuffix(p, filepath.Ext(p)) + ".html"
 }
 
 func (m *MarkdownCompiler) Compile(dst io.Writer, src io.Reader, c *Context) error {

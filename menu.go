@@ -32,6 +32,9 @@ func menuEntries(filesystem fs.FS, dir string) ([]MenuItem, error) {
 			if err != nil {
 				return nil, err
 			}
+			if len(sub) == 0 {
+				continue
+			}
 
 			item = MenuItem{
 				Title: stripNumberDotPrefix(e.Name()),
@@ -43,9 +46,10 @@ func menuEntries(filesystem fs.FS, dir string) ([]MenuItem, error) {
 			if filepath.Ext(e.Name()) != ".md" {
 				continue
 			}
+
 			item = MenuItem{
 				Title: stripNumberDotPrefix(strings.TrimSuffix(e.Name(), filepath.Ext(e.Name()))),
-				Path:  filepath.Join(dir, (&MarkdownCompiler{}).OutputFileName(e.Name())),
+				Path:  filepath.Join(dir, e.Name()),
 				IsDir: false,
 				Items: nil,
 			}
