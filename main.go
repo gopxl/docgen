@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"mime"
@@ -14,6 +15,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/gopxl/docgen/internal/bundler"
 )
 
 func init() {
@@ -27,8 +30,18 @@ func init() {
 	}
 }
 
-func newBundle(toolingFs fs.FS, versions []Version, docsDir, repoUrl string, rootUrl *url.URL) (*Bundle, error) {
-	b := NewBundler()
+func newBundle(toolingFs fs.FS, versions []Version, docsDir, repoUrl string, rootUrl *url.URL) (*bundler.Bundle, error) {
+	b := bundler.NewBundler()
+
+	rtf, err := embeddedFs.Open("resources/views/redirect.gohtml")
+	if err != nil {
+		return nil, err
+	}
+	rt, err := io.ReadAll(rtf)
+	if err != nil {
+		return nil, err
+	}
+	b.SetRedirectTemplate(string(rt))
 
 	b.FromFs(toolingFs).
 		TakeDir("public").
@@ -52,7 +65,7 @@ func newBundle(toolingFs fs.FS, versions []Version, docsDir, repoUrl string, roo
 			return nil, err
 		}
 
-		pageRenamer := NewCompositeRewriter(
+		pageRenamer := bundler.NewCompositeRewriter(
 			&SectionDirectoryRenamer{},
 			&PageFileRenamer{},
 			&MarkdownCompiler{},

@@ -9,6 +9,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/gopxl/docgen/internal/bundler"
 )
 
 type PageRenderer struct {
@@ -58,7 +60,7 @@ func NewPageRenderer(templateFs fs.FS, templateDir, layoutFile string, menuItems
 	}
 }
 
-func (pr *PageRenderer) Render(w io.Writer, c *Context, content any) error {
+func (pr *PageRenderer) Render(w io.Writer, c *bundler.Context, content any) error {
 	funcMap := map[string]any{
 		"asset": func(file string) string {
 			return c.ToAbsUrl(file).String()
@@ -104,7 +106,7 @@ func (pr *PageRenderer) loadTemplate(funcMap template.FuncMap) (*template.Templa
 	return t, nil
 }
 
-func (pr *PageRenderer) pageViewData(c *Context, content any) (page, error) {
+func (pr *PageRenderer) pageViewData(c *bundler.Context, content any) (page, error) {
 	githubRoot, err := url.Parse(fmt.Sprintf("%s/tree/main/docs/", pr.repoUrl))
 	if err != nil {
 		return page{}, fmt.Errorf("could not get parse Github url: %w", err)
@@ -121,15 +123,15 @@ func (pr *PageRenderer) pageViewData(c *Context, content any) (page, error) {
 	}
 
 	return page{
-		Title:     strings.TrimSuffix(filepath.Base(c.mapping.dstPath), filepath.Ext(c.mapping.dstPath)), // todo: add website title.
-		GithubUrl: githubRoot.JoinPath(c.mapping.srcPath).String(),
+		Title:     strings.TrimSuffix(filepath.Base(c.Mapping.DstPath), filepath.Ext(c.Mapping.DstPath)), // todo: add website title.
+		GithubUrl: githubRoot.JoinPath(c.Mapping.SrcPath).String(),
 		Versions:  versions,
 		Menu:      menu,
 		Content:   content,
 	}, nil
 }
 
-func (pr *PageRenderer) versionsViewData(c *Context) ([]pageVersionOption, error) {
+func (pr *PageRenderer) versionsViewData(c *bundler.Context) ([]pageVersionOption, error) {
 	var vs []pageVersionOption
 	for _, v := range pr.versions {
 		// todo: if the current page exists in the target version,
@@ -144,7 +146,7 @@ func (pr *PageRenderer) versionsViewData(c *Context) ([]pageVersionOption, error
 	return vs, nil
 }
 
-func (pr *PageRenderer) menuViewData(c *Context) ([]pageMenuSection, error) {
+func (pr *PageRenderer) menuViewData(c *bundler.Context) ([]pageMenuSection, error) {
 	var sections []pageMenuSection
 	for _, item := range pr.menuItems {
 		if !item.IsDir {
@@ -164,7 +166,7 @@ func (pr *PageRenderer) menuViewData(c *Context) ([]pageMenuSection, error) {
 			itm := pageMenuItem{
 				Title:    sub.Title,
 				Url:      uri,
-				IsActive: c.mapping.srcPath == sub.Path,
+				IsActive: c.Mapping.SrcPath == sub.Path,
 			}
 			s.Items = append(s.Items, itm)
 		}

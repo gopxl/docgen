@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gopxl/docgen/internal/bundler"
 	"github.com/gopxl/docgen/internal/markdown"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
@@ -16,7 +17,7 @@ import (
 )
 
 type Renderer interface {
-	Render(w io.Writer, request *Context, content any) error
+	Render(w io.Writer, request *bundler.Context, content any) error
 }
 
 type MarkdownCompiler struct {
@@ -33,7 +34,7 @@ func (m *MarkdownCompiler) Rename(p string) string {
 	return strings.TrimSuffix(p, filepath.Ext(p)) + ".html"
 }
 
-func (m *MarkdownCompiler) Compile(dst io.Writer, src io.Reader, c *Context) error {
+func (m *MarkdownCompiler) Compile(dst io.Writer, src io.Reader, c *bundler.Context) error {
 	md := goldmark.New(
 		goldmark.WithExtensions(extension.GFM),
 		goldmark.WithParserOptions(
