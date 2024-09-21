@@ -4,6 +4,10 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+    color-scheme: dark;
+}
+
 html, body {
     @apply h-full;
 }
@@ -59,7 +63,8 @@ html, body {
     }
 
     :not(pre) code {
-        @apply bg-inline-code rounded px-2 py-0.5;
+        @apply inline-block max-w-full overflow-x-auto whitespace-pre text-sm align-middle bg-inline-code rounded px-1 py-1;
+        tab-size: 4;
     }
 
     pre:has(code) {
