@@ -18,6 +18,7 @@ func NewMenuFromFs(filesystem fs.FS) ([]MenuItem, error) {
 	return menuEntries(filesystem, ".")
 }
 
+// todo: rewrite this so it only parses sections and pages.
 func menuEntries(filesystem fs.FS, dir string) ([]MenuItem, error) {
 	entries, err := fs.ReadDir(filesystem, dir)
 	if err != nil {

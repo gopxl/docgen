@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"html/template"
 	"io"
@@ -21,8 +22,6 @@ type PageRenderer struct {
 	versions    []Version
 	repoUrl     string
 }
-
-type MenuFunc func() ([]MenuItem, error)
 
 type page struct {
 	Title     string
@@ -60,11 +59,17 @@ func NewPageRenderer(templateFs fs.FS, templateDir, layoutFile string, menuItems
 	}
 }
 
-func (pr *PageRenderer) Render(w io.Writer, c *bundler.Context, content any) error {
+func (pr *PageRenderer) ModifyContent(r io.Reader, w io.Writer, ctx *bundler.Context) error {
 	funcMap := map[string]any{
 		"asset": func(file string) string {
-			return c.ToAbsUrl(file).String()
+			return ctx.ToAbsUrl(file).String()
 		},
+	}
+
+	var content bytes.Buffer
+	_, err := content.ReadFrom(r)
+	if err != nil {
+		return fmt.Errorf("error reading from source reader: %w", err)
 	}
 
 	t, err := pr.loadTemplate(funcMap)
@@ -72,7 +77,7 @@ func (pr *PageRenderer) Render(w io.Writer, c *bundler.Context, content any) err
 		return err
 	}
 
-	vm, err := pr.pageViewData(c, content)
+	vm, err := pr.pageViewData(ctx, template.HTML(content.String()))
 	if err != nil {
 		return err
 	}
@@ -123,7 +128,7 @@ func (pr *PageRenderer) pageViewData(c *bundler.Context, content any) (page, err
 	}
 
 	return page{
-		Title:     strings.TrimSuffix(filepath.Base(c.Mapping.DstPath), filepath.Ext(c.Mapping.DstPath)), // todo: add website title.
+		Title:     stripNumberPrefix(strings.TrimSuffix(filepath.Base(c.Mapping.SrcPath), filepath.Ext(c.Mapping.SrcPath))),
 		GithubUrl: githubRoot.JoinPath(c.Mapping.SrcPath).String(),
 		Versions:  versions,
 		Menu:      menu,

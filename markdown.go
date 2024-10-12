@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"html/template"
 	"io"
 	"path/filepath"
 	"strings"
@@ -16,25 +14,14 @@ import (
 	"github.com/yuin/goldmark/util"
 )
 
-type Renderer interface {
-	Render(w io.Writer, request *bundler.Context, content any) error
+type MarkdownRenderer struct {
 }
 
-type MarkdownCompiler struct {
-	layout Renderer
-}
-
-func NewMarkdownCompiler(layout Renderer) *MarkdownCompiler {
-	return &MarkdownCompiler{
-		layout: layout,
-	}
-}
-
-func (m *MarkdownCompiler) Rename(p string) string {
+func (m *MarkdownRenderer) ModifyPath(p string) string {
 	return strings.TrimSuffix(p, filepath.Ext(p)) + ".html"
 }
 
-func (m *MarkdownCompiler) Compile(dst io.Writer, src io.Reader, c *bundler.Context) error {
+func (m *MarkdownRenderer) ModifyContent(r io.Reader, w io.Writer, ctx *bundler.Context) error {
 	md := goldmark.New(
 		goldmark.WithExtensions(extension.GFM),
 		goldmark.WithParserOptions(
@@ -42,7 +29,7 @@ func (m *MarkdownCompiler) Compile(dst io.Writer, src io.Reader, c *bundler.Cont
 			parser.WithASTTransformers(
 				util.Prioritized(markdown.NewAbsoluteLinkTargetBlankTransformer(), 1),
 				util.Prioritized(markdown.NewUrlTransformer(func(url string) string {
-					rewritten, err := c.RewriteContentUrl(url)
+					rewritten, err := ctx.RewriteContentUrl(url)
 					if err != nil {
 						// Ignore error and return original url.
 						return url
@@ -53,14 +40,12 @@ func (m *MarkdownCompiler) Compile(dst io.Writer, src io.Reader, c *bundler.Cont
 		),
 	)
 
-	buf, err := io.ReadAll(src)
+	buf, err := io.ReadAll(r)
 	if err != nil {
 		return fmt.Errorf("could not read from source: %w", err)
 	}
-	var content bytes.Buffer
-	if err := md.Convert(buf, &content); err != nil {
+	if err := md.Convert(buf, w); err != nil {
 		return fmt.Errorf("could not convert Markdown: %w", err)
 	}
-
-	return m.layout.Render(dst, c, template.HTML(content.String()))
+	return nil
 }

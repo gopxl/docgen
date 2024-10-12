@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/gopxl/docgen/internal/bundler"
+	"github.com/gopxl/docgen/internal/ghredirect"
 )
 
 func init() {
@@ -33,25 +34,23 @@ func init() {
 func newBundle(toolingFs fs.FS, versions []Version, docsDir, repoUrl string, rootUrl *url.URL) (*bundler.Bundle, error) {
 	b := bundler.NewBundler()
 
-	rtf, err := embeddedFs.Open("resources/views/redirect.gohtml")
+	r, err := newRedirector(b)
 	if err != nil {
 		return nil, err
 	}
-	rt, err := io.ReadAll(rtf)
-	if err != nil {
-		return nil, err
-	}
-	b.SetRedirectTemplate(string(rt))
 
-	b.FromFs(toolingFs).
-		TakeDir("public").
-		PutInDir(".")
-	b.FromFs(toolingFs).
-		TakeGlob("node_modules/prismjs/components", "*.min.js").
-		PutInDir("vendor/prismjs/components")
-	b.FromFs(toolingFs).
-		TakeFile("node_modules/prismjs/plugins/autoloader/prism-autoloader.min.js").
-		PutInDir("vendor/prismjs/plugins/autoloader")
+	b.Add(
+		bundler.NewFsDirSource(toolingFs, "public"),
+		bundler.StoreIn("."),
+	)
+	b.Add(
+		bundler.NewFsGlobSource(toolingFs, "node_modules/prismjs/components", "*.min.js"),
+		bundler.StoreIn("vendor/prismjs/components"),
+	)
+	b.Add(
+		bundler.NewFsFileSource(toolingFs, "node_modules/prismjs/plugins/autoloader/prism-autoloader.min.js"),
+		bundler.StoreIn("vendor/prismjs/plugins/autoloader"),
+	)
 
 	// Compile docs for each version.
 	for _, v := range versions {
@@ -60,68 +59,63 @@ func newBundle(toolingFs fs.FS, versions []Version, docsDir, repoUrl string, roo
 			return nil, fmt.Errorf("could not open the %s documentation subdirectory: %w", docsDir, err)
 		}
 
-		s, err := readSettings(docsFs)
-		if err != nil {
-			return nil, err
-		}
-
-		pageRenamer := bundler.NewCompositeRewriter(
-			&SectionDirectoryRenamer{},
-			&PageFileRenamer{},
-			&MarkdownCompiler{},
-		)
+		//s, err := readSettings(docsFs)
+		//if err != nil {
+		//	return nil, err
+		//}
 
 		menuItems, err := NewMenuFromFs(docsFs)
 
 		// Add redirect from root url to default version.
-		if v.IsDefault {
-			b.Redirect(&url.URL{Path: "/index.html"}, &url.URL{Path: v.Name}).
-				PutInDir(".")
+		if v.IsDefault && len(menuItems) > 0 {
+			r.RedirectToTaggedFile("/", v.Name, menuItems[0].Items[0].Path)
 		}
 
 		// Default redirect: from version root to first section.
 		if len(menuItems) > 0 {
-			b.Redirect(&url.URL{Path: "/index.html"}, &url.URL{Path: menuItems[0].Items[0].Path}).
-				WithTargetFs(docsFs).
-				PutInDir(v.Name)
+			r.RedirectToTaggedFile(v.Name, v.Name, menuItems[0].Items[0].Path)
 		}
 
 		// Default redirect: from section root to first page in section.
 		for _, item := range menuItems {
-			b.Redirect(&url.URL{Path: (&SectionDirectoryRenamer{}).Rename(item.Path + "/index.html")}, &url.URL{Path: item.Items[0].Path}).
-				WithTargetFs(docsFs).
-				PutInDir(v.Name)
+			r.RedirectToTaggedFile(path.Join(v.Name, (&PathRewriter{}).rewriteSectionDirname(item.Path)), v.Name, item.Items[0].Path)
 		}
 
-		// Add configured redirects.
-		for from, to := range s.Redirects {
-			b.Redirect(&from, &to).
-				WithTargetFs(docsFs).
-				PutInDir(v.Name)
-		}
+		//// Add configured redirects.
+		//for from, to := range s.Redirects {
+		//	b.RedirectToTaggedFile(&from, &to).
+		//		WithTargetFs(docsFs).
+		//		PutInDir(v.Name)
+		//}
 
-		renderer := NewPageRenderer(
-			toolingFs,
-			"resources/views",
-			"layout.gohtml",
-			menuItems,
-			versions,
-			repoUrl,
+		b.Add(
+			bundler.NewFsGlobSource(docsFs, ".", "**/*.md"),
+			bundler.Pipeline(
+				&PathRewriter{},
+				&MarkdownRenderer{},
+				NewPageRenderer(
+					toolingFs,
+					"resources/views",
+					"layout.gohtml",
+					menuItems,
+					versions,
+					repoUrl,
+				),
+			),
+			bundler.StoreIn(v.Name),
+			bundler.Tag(v.Name),
 		)
 
-		b.FromFs(docsFs).
-			TakeGlob(".", "**/*.md").
-			RenameWith(pageRenamer).
-			CompileWith(NewMarkdownCompiler(renderer)).
-			PutInDir(v.Name)
-
-		b.FromFs(docsFs).
-			TakeDir(".").
-			Filter(func(file string) bool {
-				return filepath.Ext(file) != ".md" && file != settingsFile
-			}).
-			RenameWith(&SectionDirectoryRenamer{}).
-			PutInDir(v.Name)
+		b.Add(
+			bundler.NewFsDirSource(docsFs, "."),
+			bundler.Filter(func(path string) bool {
+				return filepath.Ext(path) != ".md" && path != settingsFile
+			}),
+			bundler.Pipeline(
+				&PathRewriter{},
+			),
+			bundler.StoreIn(v.Name),
+		)
 	}
 
 	return b.Compile(rootUrl)
@@ -178,7 +172,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("could not create bundle: %v", err)
 		}
-		fmt.Println(bun.DestFiles())
+		fmt.Println(bun.Files())
 	}
 
 	if serve {
@@ -201,11 +195,11 @@ func main() {
 
 			pth := path.Clean(strings.TrimLeft(request.URL.Path, "/"))
 			var buf bytes.Buffer
-			err = b.CompileFileToWriter(pth, &buf)
+			err = b.WriteFileTo(pth, &buf)
 			if errors.Is(err, fs.ErrNotExist) {
 				// Try index.html instead.
 				pth = path.Join(pth, "index.html")
-				err = b.CompileFileToWriter(pth, &buf)
+				err = b.WriteFileTo(pth, &buf)
 				if errors.Is(err, fs.ErrNotExist) {
 					writer.WriteHeader(http.StatusNotFound)
 					_, _ = writer.Write([]byte("Not Found"))
@@ -236,9 +230,26 @@ func main() {
 		if err != nil {
 			log.Fatalf("could not create bundle: %v", err)
 		}
-		err = b.CompileAllToDir(destDir)
+		err = b.StoreInDir(destDir)
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
+}
+
+func newRedirector(b *bundler.Bundler) (*ghredirect.Redirector, error) {
+	f, err := embeddedFs.Open("resources/views/redirect.gohtml")
+	if err != nil {
+		return nil, fmt.Errorf("could not open redirect template file: %w", err)
+	}
+	tmpl, err := io.ReadAll(f)
+	if err != nil {
+		return nil, fmt.Errorf("error while reading redirect template: %w", err)
+	}
+
+	r, err := ghredirect.NewRedirector(b, string(tmpl))
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
 }
