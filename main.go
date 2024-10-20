@@ -103,10 +103,11 @@ func main() {
 
 	config := &Config{
 		siteUrl:        siteUrl,
+		githubUrl:      githubUrl,
 		repositoryPath: repoPath,
 		docsDir:        docsDir,
+		outputDir:      outputDir,
 		mainBranch:     mainBranch,
-		githubUrl:      githubUrl,
 		withWorkingDir: withWorkingDir,
 	}
 	log.Printf("config:\n%v", config)
@@ -184,7 +185,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("could not create bundle: %v", err)
 		}
-		err = b.StoreInDir(outputDir)
+		err = b.StoreInDir(config.outputDir)
 		if err != nil {
 			log.Fatal(err)
 		}
