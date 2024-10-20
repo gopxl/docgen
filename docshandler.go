@@ -402,7 +402,13 @@ func (h *DocsHandler) loadTemplates() error {
 }
 
 func (h *DocsHandler) fileUrl(f *docsFile) *url.URL {
-	return h.config.rootUrl.JoinPath(f.version.name, f.dstPath)
+	u := h.config.rootUrl.JoinPath(f.version.name, f.dstPath)
+	if dir, file := path.Split(u.Path); file == "index.html" {
+		u.Path = dir
+		return u
+	}
+	u.Path = strings.TrimSuffix(u.Path, ".html")
+	return u
 }
 
 func (h *DocsHandler) rewriteContentUrl(v *docsVersion, content *docsFile, link string) (string, error) {

@@ -139,21 +139,29 @@ func main() {
 			}
 
 			pth := path.Clean(strings.TrimLeft(request.URL.Path, "/"))
+			aliases := []string{
+				pth,
+				pth + ".html",
+				path.Join(pth, "index.html"),
+			}
 			var buf bytes.Buffer
-			err = b.WriteFileTo(pth, &buf)
-			if errors.Is(err, fs.ErrNotExist) {
-				// Try index.html instead.
-				pth = path.Join(pth, "index.html")
+			var found bool
+			for _, pth := range aliases {
 				err = b.WriteFileTo(pth, &buf)
 				if errors.Is(err, fs.ErrNotExist) {
-					writer.WriteHeader(http.StatusNotFound)
-					_, _ = writer.Write([]byte("Not Found"))
+					// Try an alias.
+					continue
+				}
+				if err != nil {
+					writer.WriteHeader(http.StatusInternalServerError)
+					_, _ = writer.Write([]byte(fmt.Sprintf("could not write file: %v", err)))
 					return
 				}
+				found = true
 			}
-			if err != nil {
-				writer.WriteHeader(http.StatusInternalServerError)
-				_, _ = writer.Write([]byte(fmt.Sprintf("could not write file: %v", err)))
+			if !found {
+				writer.WriteHeader(http.StatusNotFound)
+				_, _ = writer.Write([]byte("Not Found"))
 				return
 			}
 
