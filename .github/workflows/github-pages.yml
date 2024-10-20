@@ -28,6 +28,7 @@ jobs:
           site-url: ${{ steps.configure-pages.outputs.base_url }}
           docs-directory: ${{ env.DOCS_DIR }}
           output-directory: ${{ env.OUTPUT_DIR }}
+          main-branch: ${{ env.BRANCH }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ${{ env.DEST_DIR }}

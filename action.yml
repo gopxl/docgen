@@ -16,12 +16,16 @@ inputs:
     description: 'Directory the generated files will be put in'
     required: false
     default: '_site/'
+  main-branch:
+    description: 'Branch to publish alongside tagged versions'
+    required: true
 runs:
   using: 'docker'
   image: 'Dockerfile'
   env:
-    SITE_URL: ${{ inputs.deploy-url }}
+    SITE_URL: ${{ inputs.site-url }}
     GITHUB_URL: ${{ inputs.github-url }}
     REPOSITORY_PATH: ./
     DOCS_DIR: ${{ inputs.docs-directory }}
     OUTPUT_DIR: ${{ inputs.destination-directory }}
+    MAIN_BRANCH: ${{ inputs.main-branch }}
