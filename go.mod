@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.0
-	github.com/bmatcuk/doublestar/v4 v4.6.1
+	github.com/bmatcuk/doublestar/v4 v4.7.1
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/goccy/go-yaml v1.12.0
 	github.com/gosimple/slug v1.14.0
