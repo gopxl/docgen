@@ -122,6 +122,9 @@ func NewDocsHandler(templateFs fs.FS, config *Config) (*DocsHandler, error) {
 		}
 		// Redirect from each section root to first page in section.
 		for _, item := range docs.menu {
+			if !item.IsDir {
+				continue
+			}
 			r := &redirect{
 				path:       path.Join(v.Name, (&PathRewriter{}).ModifyPath(item.Path, true), "index.html"),
 				redirectTo: docs.srcLookup[item.Items[0].Path],
@@ -427,8 +430,13 @@ func (h *DocsHandler) rewriteContentUrl(v *docsVersion, content *docsFile, link 
 		// relative to current file
 		srcPath = filepath.Join(filepath.Dir(content.srcPath), u.Path)
 	}
+	file, ok := v.srcLookup[srcPath]
+	if !ok {
+		// todo: log warning or cause error.
+		return link, nil
+	}
 
-	ru := h.fileUrl(v.srcLookup[srcPath])
+	ru := h.fileUrl(file)
 	ru.ForceQuery = u.ForceQuery
 	ru.RawQuery = u.RawQuery
 	ru.Fragment = u.Fragment
