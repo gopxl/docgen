@@ -18,7 +18,7 @@ runs:
   image: 'Dockerfile'
   env:
     SITE_URL: ${{ inputs.deploy-url }}
-    REPOSITORY_URL: ${{ env.GITHUB_SERVER_URL }}/${{ env.GITHUB_REPOSITORY }}
+    REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
     REPOSITORY_PATH: ./
     DOCS_DIR: ${{ inputs.docs-directory }}
     OUTPUT_DIR: ${{ inputs.destination-directory }}
