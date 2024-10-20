@@ -31,5 +31,5 @@ jobs:
           main-branch: ${{ env.BRANCH }}
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: ${{ env.DEST_DIR }}
+          path: ${{ env.OUTPUT_DIR }}
       - uses: actions/deploy-pages@v4
