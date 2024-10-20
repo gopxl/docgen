@@ -17,19 +17,10 @@ jobs:
       OUTPUT_DIR: '_site/'
       BRANCH: 'main'
     steps:
-      - uses: actions/configure-pages@v5
-        id: configure-pages
-      - uses: actions/checkout@v3
-        with:
-          ref: ${{ env.BRANCH }}
-          fetch-depth: 0 # checkout a non-shallow copy so the generator can generate docs for all major versions
+      - name: Checkout
+        uses: actions/checkout@v3
       - uses: ./
         with:
-          site-url: ${{ steps.configure-pages.outputs.base_url }}
           docs-directory: ${{ env.DOCS_DIR }}
           output-directory: ${{ env.OUTPUT_DIR }}
           main-branch: ${{ env.BRANCH }}
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: ${{ env.OUTPUT_DIR }}
-      - uses: actions/deploy-pages@v4
