@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"io/fs"
 	"log"
 	"mime"
@@ -17,7 +16,6 @@ import (
 	"strings"
 
 	"github.com/gopxl/docgen/internal/bundler"
-	"github.com/gopxl/docgen/internal/ghredirect"
 )
 
 func init() {
@@ -31,94 +29,39 @@ func init() {
 	}
 }
 
-func newBundle(toolingFs fs.FS, versions []Version, docsDir, repoUrl string, rootUrl *url.URL) (*bundler.Bundle, error) {
+func newBundle(toolingFs fs.FS, config *Config) (*bundler.Bundle, error) {
 	b := bundler.NewBundler()
 
-	r, err := newRedirector(b)
+	b.Add(
+		bundler.NewFsDirHandler(
+			toolingFs,
+			"public",
+			".",
+		),
+	)
+	b.Add(
+		bundler.NewFsGlobHandler(
+			toolingFs,
+			"node_modules/prismjs/components",
+			"*.min.js",
+			"vendor/prismjs/components",
+		),
+	)
+	b.Add(
+		bundler.NewFsFileHandler(
+			toolingFs,
+			"node_modules/prismjs/plugins/autoloader/prism-autoloader.min.js",
+			"vendor/prismjs/plugins/autoloader/prism-autoloader.min.js",
+		),
+	)
+
+	docsHandler, err := NewDocsHandler(toolingFs, config)
 	if err != nil {
 		return nil, err
 	}
+	b.Add(docsHandler)
 
-	b.Add(
-		bundler.NewFsDirSource(toolingFs, "public"),
-		bundler.StoreIn("."),
-	)
-	b.Add(
-		bundler.NewFsGlobSource(toolingFs, "node_modules/prismjs/components", "*.min.js"),
-		bundler.StoreIn("vendor/prismjs/components"),
-	)
-	b.Add(
-		bundler.NewFsFileSource(toolingFs, "node_modules/prismjs/plugins/autoloader/prism-autoloader.min.js"),
-		bundler.StoreIn("vendor/prismjs/plugins/autoloader"),
-	)
-
-	// Compile docs for each version.
-	for _, v := range versions {
-		docsFs, err := fs.Sub(v.FS, docsDir)
-		if err != nil {
-			return nil, fmt.Errorf("could not open the %s documentation subdirectory: %w", docsDir, err)
-		}
-
-		//s, err := readSettings(docsFs)
-		//if err != nil {
-		//	return nil, err
-		//}
-
-		menuItems, err := NewMenuFromFs(docsFs)
-
-		// Add redirect from root url to default version.
-		if v.IsDefault && len(menuItems) > 0 {
-			r.RedirectToTaggedFile("/", v.Name, menuItems[0].Items[0].Path)
-		}
-
-		// Default redirect: from version root to first section.
-		if len(menuItems) > 0 {
-			r.RedirectToTaggedFile(v.Name, v.Name, menuItems[0].Items[0].Path)
-		}
-
-		// Default redirect: from section root to first page in section.
-		for _, item := range menuItems {
-			r.RedirectToTaggedFile(path.Join(v.Name, (&PathRewriter{}).rewriteSectionDirname(item.Path)), v.Name, item.Items[0].Path)
-		}
-
-		//// Add configured redirects.
-		//for from, to := range s.Redirects {
-		//	b.RedirectToTaggedFile(&from, &to).
-		//		WithTargetFs(docsFs).
-		//		PutInDir(v.Name)
-		//}
-
-		b.Add(
-			bundler.NewFsGlobSource(docsFs, ".", "**/*.md"),
-			bundler.Pipeline(
-				&PathRewriter{},
-				&MarkdownRenderer{},
-				NewPageRenderer(
-					toolingFs,
-					"resources/views",
-					"layout.gohtml",
-					menuItems,
-					versions,
-					repoUrl,
-				),
-			),
-			bundler.StoreIn(v.Name),
-			bundler.Tag(v.Name),
-		)
-
-		b.Add(
-			bundler.NewFsDirSource(docsFs, "."),
-			bundler.Filter(func(path string) bool {
-				return filepath.Ext(path) != ".md" && path != settingsFile
-			}),
-			bundler.Pipeline(
-				&PathRewriter{},
-			),
-			bundler.StoreIn(v.Name),
-		)
-	}
-
-	return b.Compile(rootUrl)
+	return b.Compile()
 }
 
 func main() {
@@ -157,18 +100,18 @@ func main() {
 		log.Fatalf("could not parse root url %s: %v", rootUrlStr, err)
 	}
 
-	log.Printf("url: %s", rootUrl.String())
-	log.Printf("repository url: %s", repoUrl)
-	log.Printf("repository directory: %s", repoDir)
-	log.Printf("docs directory: %s", docsDir)
-
-	versions, err := GetDocVersions(repoDir, docsDir, mainBranch, dev)
-	if err != nil {
-		log.Fatalf("could not determine publishable versions: %v", err)
+	config := &Config{
+		rootUrl:        rootUrl,
+		repositoryDir:  repoDir,
+		docsDir:        docsDir,
+		mainBranch:     mainBranch,
+		githubUrl:      repoUrl,
+		withWorkingDir: dev,
 	}
+	log.Printf("config:\n%v", config)
 
 	if debug {
-		bun, err := newBundle(embeddedFs, versions, docsDir, repoUrl, rootUrl)
+		bun, err := newBundle(embeddedFs, config)
 		if err != nil {
 			log.Fatalf("could not create bundle: %v", err)
 		}
@@ -183,10 +126,12 @@ func main() {
 		if err != nil {
 			log.Fatalf("could not parse root url: %v", err)
 		}
+		devConfig := *&config // shallow copy
+		devConfig.rootUrl = rootUrl
 
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-			b, err := newBundle(embeddedFs, versions, docsDir, repoUrl, rootUrl)
+			b, err := newBundle(embeddedFs, devConfig)
 			if err != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
 				_, _ = writer.Write([]byte(fmt.Sprintf("could not create bundle: %v", err)))
@@ -226,7 +171,7 @@ func main() {
 		}
 	} else {
 		log.Println("compiling...")
-		b, err := newBundle(embeddedFs, versions, docsDir, repoUrl, rootUrl)
+		b, err := newBundle(embeddedFs, config)
 		if err != nil {
 			log.Fatalf("could not create bundle: %v", err)
 		}
@@ -235,21 +180,4 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-}
-
-func newRedirector(b *bundler.Bundler) (*ghredirect.Redirector, error) {
-	f, err := embeddedFs.Open("resources/views/redirect.gohtml")
-	if err != nil {
-		return nil, fmt.Errorf("could not open redirect template file: %w", err)
-	}
-	tmpl, err := io.ReadAll(f)
-	if err != nil {
-		return nil, fmt.Errorf("error while reading redirect template: %w", err)
-	}
-
-	r, err := ghredirect.NewRedirector(b, string(tmpl))
-	if err != nil {
-		return nil, err
-	}
-	return r, nil
 }

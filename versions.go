@@ -26,15 +26,15 @@ const (
 	preferMainBranch
 )
 
-func GetDocVersions(repoDir, docsDir, mainBranch string, withWorkingDir bool) ([]Version, error) {
+func GetDocVersions(config *Config) ([]Version, error) {
 	var prefVersion preferredVersion
-	if withWorkingDir {
+	if config.withWorkingDir {
 		prefVersion = preferWorkingDir
 	} else {
 		prefVersion = preferLatestTag
 	}
 
-	repo, err := NewGitRepository(repoDir)
+	repo, err := NewGitRepository(config.repositoryDir)
 	if err != nil {
 		return nil, fmt.Errorf("could not open git repository: %w", err)
 	}
@@ -55,9 +55,9 @@ func GetDocVersions(repoDir, docsDir, mainBranch string, withWorkingDir bool) ([
 		if err != nil {
 			return nil, fmt.Errorf("could not open repository filesystem for tag %s: %w", tag.Name(), err)
 		}
-		_, err = filesys.Open(docsDir)
+		_, err = filesys.Open(config.docsDir)
 		if errors.Is(err, fs.ErrNotExist) {
-			log.Printf("skipping tag %s: directory %s does not exist", tag.Name(), docsDir)
+			log.Printf("skipping tag %s: directory %s does not exist", tag.Name(), config.docsDir)
 			continue
 		}
 		if other, ok := latest[v.Major()]; ok && v.LessThan(other.Version) {
@@ -81,21 +81,21 @@ func GetDocVersions(repoDir, docsDir, mainBranch string, withWorkingDir bool) ([
 		}
 	}
 
-	branch, err := repo.Branch(mainBranch)
+	branch, err := repo.Branch(config.mainBranch)
 	if err != nil {
-		return nil, fmt.Errorf("could not get branch %s from repository: %w", mainBranch, err)
+		return nil, fmt.Errorf("could not get branch %s from repository: %w", config.mainBranch, err)
 	}
 	filesys, err := repo.FS(branch)
 	if err != nil {
-		return nil, fmt.Errorf("could not open repository filesystem for branch %s: %w", mainBranch, err)
+		return nil, fmt.Errorf("could not open repository filesystem for branch %s: %w", config.mainBranch, err)
 	}
-	_, err = filesys.Open(docsDir)
+	_, err = filesys.Open(config.docsDir)
 	if errors.Is(err, fs.ErrNotExist) {
-		log.Printf("skipping branch %s: directory %s does not exist", mainBranch, docsDir)
+		log.Printf("skipping branch %s: directory %s does not exist", config.mainBranch, config.docsDir)
 	} else {
 		versions = append([]Version{
 			{
-				Name:      mainBranch,
+				Name:      config.mainBranch,
 				Version:   nil,
 				IsDefault: prefVersion == preferMainBranch,
 				FS:        filesys,
@@ -103,13 +103,13 @@ func GetDocVersions(repoDir, docsDir, mainBranch string, withWorkingDir bool) ([
 		}, versions...)
 	}
 
-	if withWorkingDir {
+	if config.withWorkingDir {
 		versions = append([]Version{
 			{
 				Name:      "dev",
 				Version:   nil,
 				IsDefault: prefVersion == preferWorkingDir,
-				FS:        os.DirFS(repoDir),
+				FS:        os.DirFS(config.repositoryDir),
 			},
 		}, versions...)
 	}

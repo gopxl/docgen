@@ -1,183 +1,111 @@
 package bundler
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
-	"strings"
 )
 
 type Bundler struct {
-	rules []*bundleRule
+	handlers []Handler
 }
 
 func NewBundler() *Bundler {
 	return &Bundler{}
 }
 
-func (b *Bundler) Add(src Source, opts ...Option) {
-	r := &bundleRule{
-		src: src,
-	}
-	for _, opt := range opts {
-		opt(r)
-	}
-	b.rules = append(b.rules, r)
+func (b *Bundler) Add(h Handler) {
+	b.handlers = append(b.handlers, h)
 }
 
-func (b *Bundler) Compile(rootUrl *url.URL) (*Bundle, error) {
+func (b *Bundler) Compile() (*Bundle, error) {
 	bun := Bundle{
-		rootUrl: rootUrl,
-		files:   nil,
-		tagged:  make(map[string]map[string]*Mapping),
-		lookup:  make(map[string]*Mapping),
+		lookup: make(map[string]singleFileHandler),
 	}
-	for _, r := range b.rules {
-		files, err := r.src.Files()
+	for _, h := range b.handlers {
+		files, err := h.Files()
 		if err != nil {
 			return nil, fmt.Errorf("could not cimpile bundle: %w", err)
 		}
-	fileLoop:
 		for _, file := range files {
-			for _, f := range r.filters {
-				if !f(file) {
-					continue fileLoop
-				}
+			bun.lookup[file] = singleFileHandler{
+				h: h,
+				f: file,
 			}
-			bun.files = append(bun.files, Mapping{
-				src:       r.src,
-				SrcPath:   file,
-				modifiers: r.modifiers,
-				storePath: path.Join(r.dstDir, r.modifiers.ModifyPath(file)),
-				tag:       r.tag,
-			})
-		}
-	}
-	sort.Slice(bun.files, func(i, j int) bool {
-		return bun.files[i].storePath < bun.files[j].storePath
-	})
-	for i, m := range bun.files {
-		bun.lookup[m.storePath] = &bun.files[i]
-		if m.tag != "" {
-			if _, ok := bun.tagged[m.tag]; !ok {
-				bun.tagged[m.tag] = make(map[string]*Mapping)
-			}
-			if _, ok := bun.tagged[m.tag][m.SrcPath]; ok {
-				return nil, fmt.Errorf("found multiple files with the same tag and source path: tag: %q path: %q", m.tag, m.SrcPath)
-			}
-			bun.tagged[m.tag][m.SrcPath] = &bun.files[i]
 		}
 	}
 	return &bun, nil
 }
 
-type bundleRule struct {
-	src       Source
-	filters   []FilterFunc
-	modifiers ModifierSlice
-	dstDir    string
-	tag       string
-}
-
-type Option func(r *bundleRule)
-
-type FilterFunc func(path string) bool
-
-func Filter(f FilterFunc) Option {
-	return func(r *bundleRule) {
-		r.filters = append(r.filters, f)
-	}
-}
-
-func Pipeline(m ...interface{}) Option {
-	return func(r *bundleRule) {
-		r.modifiers = append(r.modifiers, m...)
-	}
-}
-
-func StoreIn(dir string) Option {
-	return func(r *bundleRule) {
-		r.dstDir = strings.TrimLeft(path.Clean(dir), "/")
-	}
-}
-
-func Tag(tag string) Option {
-	return func(r *bundleRule) {
-		r.tag = tag
-	}
-}
-
 type Bundle struct {
-	rootUrl *url.URL
-	files   []Mapping
-	lookup  map[string]*Mapping            // [dstpath]*Mapping
-	tagged  map[string]map[string]*Mapping // [tag][srcpath]*Mapping
+	lookup map[string]singleFileHandler // [dstpath]singleFileHandler
 }
 
-type Mapping struct {
-	src       Source
-	SrcPath   string
-	modifiers ModifierSlice
-	storePath string
-	tag       string
+type singleFileHandler struct {
+	h Handler
+	f string
+}
+
+func (h singleFileHandler) handle(w io.Writer) error {
+	err := h.h.Handle(w, h.f)
+	if errors.Is(err, fs.ErrNotExist) {
+		return errors.New(fmt.Sprintf("could not find bundled file %s even though it was listed by the handler", h.f))
+	}
+	return err
 }
 
 // Files lists the output file paths in the Bundle.
 func (bun *Bundle) Files() []string {
-	s := make([]string, len(bun.files))
-	for _, m := range bun.files {
-		s = append(s, m.storePath)
+	s := make([]string, len(bun.lookup))
+	for dst := range bun.lookup {
+		s = append(s, dst)
 	}
+	sort.Strings(s)
 	return s
 }
 
 // StoreInDir compiles all files in the Bundle to the given output directory.
 func (bun *Bundle) StoreInDir(dir string) error {
-	for i := range bun.files {
-		if err := bun.storeMappingInDir(&bun.files[i], dir); err != nil {
+	for _, h := range bun.lookup {
+		if err := bun.handleAndStoreInDir(h, dir); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (bun *Bundle) storeMappingInDir(m *Mapping, dir string) error {
-	storePth := filepath.Join(dir, m.storePath)
-	err := os.MkdirAll(filepath.Dir(storePth), 0755)
+func (bun *Bundle) handleAndStoreInDir(h singleFileHandler, dir string) error {
+	p := filepath.Join(dir, h.f)
+	err := os.MkdirAll(filepath.Dir(p), 0755)
 	if err != nil {
-		return fmt.Errorf("could not create directory for output file %v: %w", storePth, err)
+		return fmt.Errorf("could not create directory for output file %v: %w", p, err)
 	}
-	dst, err := os.OpenFile(storePth, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return fmt.Errorf("could not open output file %v: %w", dir, err)
 	}
-	defer dst.Close()
-	return bun.writeMappingTo(m, dst)
+	defer f.Close()
+	return bun.handleAndWrite(h, f)
 }
 
 // WriteFileTo compiles the file stored at pth and writes the output to w.
 func (bun *Bundle) WriteFileTo(pth string, w io.Writer) error {
 	pth = path.Clean(pth)
 	if m, ok := bun.lookup[pth]; ok {
-		return bun.writeMappingTo(m, w)
+		return bun.handleAndWrite(m, w)
 	}
 	return fs.ErrNotExist
 }
 
-func (bun *Bundle) writeMappingTo(m *Mapping, w io.Writer) error {
-	r, err := m.src.Open(m.SrcPath)
+func (bun *Bundle) handleAndWrite(h singleFileHandler, w io.Writer) error {
+	err := h.handle(w)
 	if err != nil {
-		return fmt.Errorf("could not open source file %s: %w", m.SrcPath, err)
+		return fmt.Errorf("error handling file %s: %w", h.f, err)
 	}
-	defer r.Close()
-
-	return m.modifiers.ModifyContent(r, w, &Context{
-		Bundle:  bun,
-		Mapping: m,
-	})
+	return nil
 }

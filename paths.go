@@ -22,15 +22,15 @@ func stripNumberPrefix(str string) string {
 type PathRewriter struct {
 }
 
-func (r *PathRewriter) ModifyPath(p string) string {
+func (r *PathRewriter) ModifyPath(p string, isDir bool) string {
 	parts := strings.Split(p, "/")
 
 	ext := path.Ext(parts[len(parts)-1])
-	if ext == ".md" {
+	if ext == ".md" && !isDir {
 		parts[len(parts)-1] = r.rewritePageFilename(parts[len(parts)-1])
 	}
 
-	if len(parts) > 1 {
+	if isDir || len(parts) > 1 {
 		parts[0] = r.rewriteSectionDirname(parts[0])
 	}
 
@@ -42,7 +42,7 @@ func (r *PathRewriter) rewritePageFilename(filename string) string {
 	base := strings.TrimSuffix(filename, ext)
 	base = stripNumberPrefix(base)
 	base = slug.Make(base)
-	return base + ext
+	return base + ".html"
 }
 
 func (r *PathRewriter) rewriteSectionDirname(dirname string) string {
