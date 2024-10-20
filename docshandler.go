@@ -105,29 +105,37 @@ func NewDocsHandler(templateFs fs.FS, config *Config) (*DocsHandler, error) {
 		h.versions = append(h.versions, &docs)
 
 		// Redirect from site root to default version.
-		if v.IsDefault && len(docs.menu) > 0 {
-			r := &redirect{
-				path:       "index.html",
-				redirectTo: docs.srcLookup[docs.menu[0].Items[0].Path],
+		if v.IsDefault {
+			for _, section := range docs.menu {
+				if section.IsDir {
+					r := &redirect{
+						path:       "index.html",
+						redirectTo: docs.srcLookup[docs.menu[0].Items[0].Path],
+					}
+					h.redirects[r.path] = r
+					break
+				}
 			}
-			h.redirects[r.path] = r
 		}
 		// Redirect from version root to first section.
-		if len(docs.menu) > 0 {
-			r := &redirect{
-				path:       path.Join(v.Name, "index.html"),
-				redirectTo: docs.srcLookup[docs.menu[0].Items[0].Path],
+		for _, section := range docs.menu {
+			if section.IsDir {
+				r := &redirect{
+					path:       path.Join(v.Name, "index.html"),
+					redirectTo: docs.srcLookup[docs.menu[0].Items[0].Path],
+				}
+				h.redirects[r.path] = r
+				break
 			}
-			h.redirects[r.path] = r
 		}
 		// Redirect from each section root to first page in section.
-		for _, item := range docs.menu {
-			if !item.IsDir {
+		for _, section := range docs.menu {
+			if !section.IsDir {
 				continue
 			}
 			r := &redirect{
-				path:       path.Join(v.Name, (&PathRewriter{}).ModifyPath(item.Path, true), "index.html"),
-				redirectTo: docs.srcLookup[item.Items[0].Path],
+				path:       path.Join(v.Name, (&PathRewriter{}).ModifyPath(section.Path, true), "index.html"),
+				redirectTo: docs.srcLookup[section.Items[0].Path],
 			}
 			h.redirects[r.path] = r
 		}
