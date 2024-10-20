@@ -14,7 +14,7 @@ jobs:
       id-token: write
     env:
       DOCS_DIR: 'docs/'
-      DEST_DIR: '_site/'
+      OUTPUT_DIR: '_site/'
       BRANCH: 'main'
     steps:
       - uses: actions/configure-pages@v5
@@ -25,9 +25,9 @@ jobs:
           fetch-depth: 0 # checkout a non-shallow copy so the generator can generate docs for all major versions
       - uses: ./
         with:
-          deploy-url: ${{ steps.configure-pages.outputs.base_url }}
+          site-url: ${{ steps.configure-pages.outputs.base_url }}
           docs-directory: ${{ env.DOCS_DIR }}
-          destination-directory: ${{ env.DEST_DIR }}
+          output-directory: ${{ env.OUTPUT_DIR }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ${{ env.DEST_DIR }}

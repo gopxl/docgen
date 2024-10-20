@@ -2,6 +2,7 @@
 node_modules/
 public/css/docs.css
 generated/
+.env
 
 # IDE
 .idea/

@@ -34,7 +34,7 @@ func GetDocVersions(config *Config) ([]Version, error) {
 		prefVersion = preferLatestTag
 	}
 
-	repo, err := NewGitRepository(config.repositoryDir)
+	repo, err := NewGitRepository(config.repositoryPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not open git repository: %w", err)
 	}
@@ -109,7 +109,7 @@ func GetDocVersions(config *Config) ([]Version, error) {
 				Name:      "dev",
 				Version:   nil,
 				IsDefault: prefVersion == preferWorkingDir,
-				FS:        os.DirFS(config.repositoryDir),
+				FS:        os.DirFS(config.repositoryPath),
 			},
 		}, versions...)
 	}

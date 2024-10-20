@@ -13,9 +13,11 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gopxl/docgen/internal/bundler"
+	"github.com/joho/godotenv"
 )
 
 func init() {
@@ -71,42 +73,41 @@ func main() {
 	}
 	log.Printf("current working directory: %s", workingDir)
 
-	var rootUrlStr string
-	var repoDir string
-	var repoUrl string
-	var mainBranch string
-	var docsDir string
-	var destDir string
-	var serve bool
-	var dev bool
-	var debug bool
+	err = godotenv.Load()
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		log.Fatalf("error loading .env file: %v", err)
+	}
 
-	flag.StringVar(&rootUrlStr, "url", "", "root url the files will be hosted under (https://owner.github.com/project)")
-	flag.StringVar(&repoDir, "repository", ".", "path to the git repository")
-	flag.StringVar(&repoUrl, "repository-url", ".", "GitHub url of the git repository (https://github.com/owner/project)")
-	flag.StringVar(&mainBranch, "main-branch", "main", "Branch to include in the version list")
-	flag.StringVar(&docsDir, "docs", "docs", "the directory containing the documentation within the repository")
-	flag.StringVar(&destDir, "dest", "generated", "path to the output directory")
+	var serve bool
+	var debug bool
 	flag.BoolVar(&serve, "serve", false, "serve the site through a webserver for development")
-	flag.BoolVar(&dev, "dev", false, "include the local working directory of the repository as a published version")
 	flag.BoolVar(&debug, "debug", false, "print debugging information")
 	flag.Parse()
 
-	repoDir = filepath.Clean(repoDir)
-	docsDir = filepath.Clean(docsDir)
-
-	rootUrl, err := url.Parse(rootUrlStr)
+	siteUrlStr := os.Getenv("SITE_URL")
+	githubUrl := os.Getenv("GITHUB_URL")
+	repoPath := filepath.Clean(os.Getenv("REPOSITORY_PATH"))
+	docsDir := filepath.Clean(os.Getenv("DOCS_DIR"))
+	outputDir := os.Getenv("OUTPUT_DIR")
+	mainBranch := os.Getenv("MAIN_BRANCH")
+	withWorkingDirStr := os.Getenv("WORKING_DIRECTORY")
+	withWorkingDir, err := strconv.ParseBool(withWorkingDirStr)
 	if err != nil {
-		log.Fatalf("could not parse root url %s: %v", rootUrlStr, err)
+		withWorkingDir = false
+	}
+
+	siteUrl, err := url.Parse(siteUrlStr)
+	if err != nil {
+		log.Fatalf("could not parse root url %s: %v", siteUrlStr, err)
 	}
 
 	config := &Config{
-		rootUrl:        rootUrl,
-		repositoryDir:  repoDir,
+		siteUrl:        siteUrl,
+		repositoryPath: repoPath,
 		docsDir:        docsDir,
 		mainBranch:     mainBranch,
-		githubUrl:      repoUrl,
-		withWorkingDir: dev,
+		githubUrl:      githubUrl,
+		withWorkingDir: withWorkingDir,
 	}
 	log.Printf("config:\n%v", config)
 
@@ -122,12 +123,12 @@ func main() {
 		log.Println("Starting development server...")
 
 		// Override root url.
-		rootUrl, err = url.Parse("http://localhost:8080")
+		siteUrl, err = url.Parse("http://localhost:8080")
 		if err != nil {
 			log.Fatalf("could not parse root url: %v", err)
 		}
 		devConfig := *&config // shallow copy
-		devConfig.rootUrl = rootUrl
+		devConfig.siteUrl = siteUrl
 
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
@@ -169,10 +170,10 @@ func main() {
 			_, _ = writer.Write(buf.Bytes())
 		})
 		s := &http.Server{
-			Addr:    fmt.Sprintf(":%s", rootUrl.Port()),
+			Addr:    fmt.Sprintf(":%s", siteUrl.Port()),
 			Handler: mux,
 		}
-		log.Printf("listening on %v", rootUrl.String())
+		log.Printf("listening on %v", siteUrl.String())
 		err = s.ListenAndServe()
 		if err != nil {
 			log.Fatalf("could not serve development server: %v", err)
@@ -183,7 +184,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("could not create bundle: %v", err)
 		}
-		err = b.StoreInDir(destDir)
+		err = b.StoreInDir(outputDir)
 		if err != nil {
 			log.Fatal(err)
 		}

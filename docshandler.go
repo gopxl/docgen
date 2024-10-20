@@ -333,7 +333,7 @@ func (h *DocsHandler) versionsViewData(current *docsVersion, info *docsFile) ([]
 			u = h.fileUrl(f).String()
 		} else {
 			// Default to the root page of the version.
-			u = h.config.rootUrl.JoinPath(v.name).String()
+			u = h.config.siteUrl.JoinPath(v.name).String()
 		}
 
 		options = append(options, versionOptionViewData{
@@ -378,7 +378,7 @@ func (h *DocsHandler) loadTemplates() error {
 	t := template.New("")
 	t.Funcs(map[string]any{
 		"asset": func(file string) string {
-			return h.config.rootUrl.JoinPath(file).String()
+			return h.config.siteUrl.JoinPath(file).String()
 		},
 	})
 	err := fs.WalkDir(h.templateFs, templateDir, func(path string, entry fs.DirEntry, err error) error {
@@ -402,7 +402,7 @@ func (h *DocsHandler) loadTemplates() error {
 }
 
 func (h *DocsHandler) fileUrl(f *docsFile) *url.URL {
-	u := h.config.rootUrl.JoinPath(f.version.name, f.dstPath)
+	u := h.config.siteUrl.JoinPath(f.version.name, f.dstPath)
 	if dir, file := path.Split(u.Path); file == "index.html" {
 		u.Path = dir
 		return u

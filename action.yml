@@ -6,17 +6,19 @@ inputs:
     description: 'Path to the documentation directory inside the repository'
     required: false
     default: 'docs'
-  destination-directory:
-    description: 'Directory the generated files will be stored to'
+  output-directory:
+    description: 'Directory the generated files will be put in'
     required: false
     default: '_site/'
-  deploy-url:
+  site-url:
     description: "URL the site will be deployed to (https://owner.github.com/project)"
     required: true
 runs:
   using: 'docker'
   image: 'Dockerfile'
   env:
-    DEPLOY_URL: ${{ inputs.deploy-url }}
+    SITE_URL: ${{ inputs.deploy-url }}
+    REPOSITORY_URL: ${{ env.GITHUB_SERVER_URL }}/${{ env.GITHUB_REPOSITORY }}
+    REPOSITORY_PATH: ./
     DOCS_DIR: ${{ inputs.docs-directory }}
-    DEST_DIR: ${{ inputs.destination-directory }}
+    OUTPUT_DIR: ${{ inputs.destination-directory }}
