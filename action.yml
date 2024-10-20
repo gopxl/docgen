@@ -16,6 +16,13 @@ inputs:
   main-branch:
     description: 'Branch to publish alongside tagged versions'
     required: true
+  # temporary, figure out another solution.
+  action-repository:
+    description: "for internal use"
+    default: ${{ github.action_repository }}
+  action-ref:
+    description: "for internal use"
+    default: ${{ github.action_ref }}
 runs:
   using: 'composite'
   steps:
@@ -28,7 +35,7 @@ runs:
         ref: ${{ inputs.main-branch }}
         fetch-depth: 0 # checkout a non-shallow copy so the generator can generate docs for all major versions
     - name: Generate static site
-      uses: ${{ github.action_repository }}/.github/actions/docgen@${{ github.action_ref }}
+      uses: ${{ inputs.action-repository }}/.github/actions/docgen@${{ inputs.action-ref }}
       with:
         site-url: ${{ steps.configure-pages.outputs.base_url }}
         github-url: ${{ inputs.github-url }}
