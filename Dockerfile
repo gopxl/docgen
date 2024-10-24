@@ -10,9 +10,10 @@ COPY --from=node /usr/local/bin /usr/local/bin
 WORKDIR /app
 
 COPY ./ ./
+COPY entrypoint.sh /entrypoint.sh
 
 RUN npm install
 RUN npm run build
 RUN go build -tags embed -o /bin/gopxl-docs .
 
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]
