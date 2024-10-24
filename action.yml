@@ -2,6 +2,9 @@ name: 'gopxl docs'
 author: 'Mark Kremer'
 description: 'A static website generator for the gopxl Markdown documentation'
 inputs:
+  site-url:
+    description: "URL the site will be deployed to (https://owner.github.com/project)"
+    required: true
   github-url:
     description: "URL to the Github repository"
     default: ${{ github.server_url }}/${{ github.repository }}
@@ -16,35 +19,13 @@ inputs:
   main-branch:
     description: 'Branch to publish alongside tagged versions'
     required: true
-  # temporary, figure out another solution.
-  action-repository:
-    description: "for internal use"
-    default: ${{ github.action_repository }}
-  action-ref:
-    description: "for internal use"
-    default: ${{ github.action_ref }}
 runs:
-  using: 'composite'
-  steps:
-    - name: Configure pages
-      uses: actions/configure-pages@v5
-      id: configure-pages
-    - name: Checkout
-      uses: actions/checkout@v3
-      with:
-        ref: ${{ inputs.main-branch }}
-        fetch-depth: 0 # checkout a non-shallow copy so the generator can generate docs for all major versions
-    - name: Generate static site
-      uses: ${{ inputs.action-repository }}/.github/actions/docgen@${{ inputs.action-ref }}
-      with:
-        site-url: ${{ steps.configure-pages.outputs.base_url }}
-        github-url: ${{ inputs.github-url }}
-        docs-directory: ${{ inputs.docs-directory }}
-        output-directory: ${{ inputs.output-directory }}
-        main-branch: ${{ inputs.main-branch }}
-    - name: Upload pages
-      uses: actions/upload-pages-artifact@v3
-      with:
-        path: ${{ inputs.output-directory }}
-    - name: Deploy pages
-      uses: actions/deploy-pages@v4
+  using: 'docker'
+  image: 'Dockerfile'
+  env:
+    SITE_URL: ${{ inputs.site-url }}
+    GITHUB_URL: ${{ inputs.github-url }}
+    REPOSITORY_PATH: ./
+    DOCS_DIR: ${{ inputs.docs-directory }}
+    OUTPUT_DIR: ${{ inputs.output-directory }}
+    MAIN_BRANCH: ${{ inputs.main-branch }}
