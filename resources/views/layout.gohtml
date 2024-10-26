@@ -12,7 +12,7 @@
 <div class="flex flex-row">
     {{template "nav.gohtml" .Menu}}
 
-    <div class="relative left-1/4 w-5/12 py-11 pl-24">
+    <div class="relative left-1/4 py-11 pl-24">
         <div>
             <div class="flex flex-row px-2">
                 <div class="flex-grow"></div>
@@ -30,7 +30,7 @@
         </div>
 
         {{/* language-none defines the default language used for code blocks */ -}}
-        <div class="content language-none">
+        <div class="content language-none max-w-prose">
             {{.Content}}
         </div>
 
