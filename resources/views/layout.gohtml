@@ -3,6 +3,7 @@
 <head>
     <title>{{.Title}}</title>
     <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <link rel="icon" type="image/x-icon" href="{{asset "images/logo.svg"}}">
     <link rel="stylesheet" href="{{asset "css/docs.css"}}">
@@ -12,7 +13,7 @@
 <div class="flex-grow flex flex-row items-stretch">
     {{template "nav.gohtml" .Menu}}
 
-    <div class="px-24 py-11 w-fit">
+    <div class="px-12 lg:px-24 py-11 max-w-full">
         <div>
             <div class="flex flex-row px-2">
                 <div class="flex-grow"></div>
@@ -30,7 +31,8 @@
         </div>
 
         {{/* language-none defines the default language used for code blocks */ -}}
-        <main class="content language-none w-screen max-w-prose">
+        {{/* w-[65ch] is based on max-w-prose in Tailwind */}}
+        <main class="content language-none w-[65ch] max-w-full">
             {{.Content}}
         </main>
 
