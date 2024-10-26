@@ -10,13 +10,7 @@
 <body class="bg-background">
 
 <div class="flex flex-row">
-    <nav class="fixed overflow-y-auto h-full w-1/4 flex flex-col items-end py-12 bg-sidebar">
-        <div class="w-1/2 mb-4">
-            {{template "logo.svg"}}
-        </div>
-
-        {{template "menu.gohtml" .Menu}}
-    </nav>
+    {{template "nav.gohtml" .Menu}}
 
     <div class="relative left-1/4 w-5/12 py-11 pl-24">
         <div>

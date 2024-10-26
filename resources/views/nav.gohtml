@@ -1,0 +1,25 @@
+<nav class="fixed overflow-y-auto h-full w-1/4 flex flex-col items-end py-12 bg-sidebar">
+    <div class="w-1/2 mb-4">
+        {{template "logo.svg"}}
+    </div>
+
+    <ul class="w-1/2">
+        <li>
+            {{range .}}
+                <h2 class="py-4 text-tertiary font-bold">
+                    {{.Title}}
+                </h2>
+                <ul>
+                    {{range .Items}}
+                        <li>
+                            <a href="{{.Url}}"
+                               class="block text-off-white {{if .IsActive}}font-bold{{else}}font-extralight{{end}} leading-9 pl-4 hover:pl-5 transition-all duration-300">
+                                {{.Title}}
+                            </a>
+                        </li>
+                    {{end}}
+                </ul>
+            {{end}}
+        </li>
+    </ul>
+</nav>
