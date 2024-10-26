@@ -7,12 +7,12 @@
     <link rel="icon" type="image/x-icon" href="{{asset "images/logo.svg"}}">
     <link rel="stylesheet" href="{{asset "css/docs.css"}}">
 </head>
-<body class="bg-background">
+<body class="flex flex-col bg-background">
 
-<div class="flex flex-row">
+<div class="flex-grow flex flex-row items-stretch">
     {{template "nav.gohtml" .Menu}}
 
-    <div class="relative left-1/4 py-11 pl-24">
+    <div class="px-24 py-11 w-fit">
         <div>
             <div class="flex flex-row px-2">
                 <div class="flex-grow"></div>
@@ -30,7 +30,7 @@
         </div>
 
         {{/* language-none defines the default language used for code blocks */ -}}
-        <main class="content language-none max-w-prose">
+        <main class="content language-none w-screen max-w-prose">
             {{.Content}}
         </main>
 
