@@ -16,9 +16,7 @@ window.addEventListener('load', function () {
     }
 });
 
-function openMenu() {
-    document.getElementById('sidebar-nav').dataset.open = 'open';
-}
-function closeMenu() {
-    document.getElementById('sidebar-nav').dataset.open = 'closed';
+function toggleMenu() {
+    const nav = document.getElementById('sidebar-nav');
+    nav.dataset.open = nav.dataset.open === 'open' ? 'closed' : 'open';
 }
