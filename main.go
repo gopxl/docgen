@@ -56,6 +56,13 @@ func newBundle(toolingFs fs.FS, config *Config) (*bundler.Bundle, error) {
 			"vendor/prismjs/plugins/autoloader/prism-autoloader.min.js",
 		),
 	)
+	b.Add(
+		bundler.NewFsFileHandler(
+			toolingFs,
+			"resources/js/app.js",
+			"js/app.js",
+		),
+	)
 
 	docsHandler, err := NewDocsHandler(toolingFs, config)
 	if err != nil {

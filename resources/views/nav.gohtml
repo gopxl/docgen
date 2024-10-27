@@ -1,6 +1,18 @@
-<nav class="sticky top-0 bottom-0 max-h-screen overflow-y-auto flex flex-col bg-sidebar">
+<nav id="sidebar-nav"
+     data-open="closed"
+     class="
+        transition-transform -translate-x-full data-[open=open]:translate-x-0 xl:translate-x-0
+        fixed left-0 overscroll-contain overscroll-contain-force z-10 rounded-r-md xl:rounded-none
+        xl:sticky top-0 bottom-0 max-h-screen overflow-y-auto flex flex-col bg-sidebar
+    ">
     <div class="box-content w-64 px-16 py-12">
-        <div class="mb-4">
+        <div class="xl:hidden mb-8">
+            <button onclick="closeMenu()">
+                <img src="{{asset "images/menu_close.svg"}}"  alt="Close menu"/>
+            </button>
+        </div>
+
+        <div class="hidden xl:block mb-4">
             {{template "logo.svg"}}
         </div>
 

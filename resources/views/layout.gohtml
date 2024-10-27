@@ -7,13 +7,26 @@
 
     <link rel="icon" type="image/x-icon" href="{{asset "images/logo.svg"}}">
     <link rel="stylesheet" href="{{asset "css/docs.css"}}">
+
+    <script type="text/javascript" src="{{asset "js/app.js"}}"></script>
 </head>
 <body class="flex flex-col bg-background">
 
-<div class="flex-grow flex flex-row items-stretch">
+<div class="flex-grow flex flex-row items-stretch justify-center xl:justify-normal">
     {{template "nav.gohtml" .Menu}}
 
     <div class="px-8 lg:px-24 py-11 max-w-full">
+        <div class="xl:hidden grid grid-cols-3 mb-4">
+            <button onclick="openMenu()" class="self-center -m-2 p-2">
+                <img src="{{asset "images/menu_hamburger.svg"}}"  alt="Open menu"/>
+            </button>
+            <div class="justify-self-center">
+                {{/* todo: make this and the logo in nav.gohtml a link to home */}}
+                {{template "logo.svg"}}
+            </div>
+            <div></div>
+        </div>
+
         <div>
             <div class="flex flex-row px-2">
                 <div class="flex-grow"></div>
