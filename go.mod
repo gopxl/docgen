@@ -9,7 +9,7 @@ require (
 	github.com/goccy/go-yaml v1.12.0
 	github.com/gosimple/slug v1.14.0
 	github.com/joho/godotenv v1.5.1
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/yuin/goldmark v1.7.8
 )
 
